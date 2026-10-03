@@ -14,6 +14,7 @@ class PoliticaSessaoTest {
     }
     @Test void outrosPerfisExpiramExatamenteEmSeteDiasMesmoComAtividade() {
         for (var perfil : new Perfil[]{Perfil.GESTOR_PRODUCAO, Perfil.GESTOR_GERAL, Perfil.ADMINISTRADOR}) {
+            assertThat(politica.inatividadeSegundos(perfil)).isEqualTo(604800);
             assertThat(politica.expirou(perfil, inicio, inicio.plus(Duration.ofDays(7)).minusSeconds(1))).isFalse();
             assertThat(politica.expirou(perfil, inicio, inicio.plus(Duration.ofDays(7)))).isTrue();
         }
