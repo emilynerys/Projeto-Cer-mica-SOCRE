@@ -1,0 +1,68 @@
+@startuml
+' Base: documento de requisitos v1.7 e protótipo de telas.
+' Decisões de modelagem e divergências estão no README.md.
+!pragma layout smetana
+left to right direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+title Casos de uso — acompanhamento da produção cerâmica
+
+actor "Usuário" as Usuario <<abstrato>>
+actor "Supervisor de\nProdução" as Supervisor
+actor "Gestor de\nProdução" as Gestor
+actor "Gestores Gerais" as Gerais
+actor "Administrador\ndo Sistema" as Admin
+Usuario <|-- Supervisor
+Usuario <|-- Gestor
+Usuario <|-- Gerais
+Usuario <|-- Admin
+
+rectangle "Sistema de acompanhamento da produção" {
+  usecase "Autenticar e manter sessão\nRF01–RF03" as Login
+  usecase "Encerrar sessão\nRF31" as Sair
+  usecase "Registrar produção\nRF04–RF14, RF25" as Registrar
+  usecase "Consultar lançamentos\nRF15, RF29" as Consultar
+  usecase "Corrigir lançamento\nRF16, RF30" as Corrigir
+  usecase "Validar lançamento\nRF17" as Validar
+  usecase "Consultar indicadores\nRF19, RF20, RF24, RF33\nRF28: desejável" as Indicadores
+  usecase "Exportar relatório\nRF27: importante\nRF21: desejável" as Exportar
+  usecase "Cadastrar / manter\ncódigos de fornada\nRF26, RF34" as Fornadas
+  usecase "Abrir / fechar fornada\nRF34" as CicloFornada
+  usecase "Gerenciar usuários e perfis\nRF22" as Usuarios
+  usecase "Redefinir senha\nRF32" as Senha
+  usecase "Gerenciar unidades\nRF23" as Unidades
+}
+
+Usuario -- Login
+Usuario -- Sair
+Supervisor -- Registrar
+Supervisor -- Consultar
+Supervisor -- Corrigir
+Gestor -- Consultar
+Gestor -- Corrigir
+Gestor -- Validar
+Gestor -- Indicadores
+Gestor -- Exportar
+Gestor -- Fornadas
+Gestor -- CicloFornada
+Gerais -- Consultar
+Gerais -- Indicadores
+Gerais -- Exportar
+Admin -- Usuarios
+Admin -- Senha
+Admin -- Unidades
+Admin -- Fornadas
+
+legend bottom left
+  Sessão válida é precondição dos casos protegidos.
+  Supervisor: consulta próprios registros da sua unidade;
+  pode corrigi-los somente enquanto Pendentes.
+  Gestor de Produção: consulta/correção em todas as unidades.
+  Gestores Gerais: leitura de produção em todas as unidades.
+  Criação, correção, validação e redefinição de senha geram auditoria.
+  Administrador sem dashboard, conforme descrição dos atores;
+  a matriz do protótipo diverge (ver README).
+endlegend
+@enduml

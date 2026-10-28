@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: socre-producao
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 6
+  flyway:
+    user: ${DB_MIGRATION_USER}
+    password: ${DB_MIGRATION_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  session:
+    jdbc:
+      initialize-schema: never
+  thymeleaf:
+    cache: true
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${PORT:8080}
+  error:
+    include-message: never
+    include-stacktrace: never
+  servlet:
+    session:
+      timeout: 7d
+socre:
+  secure-cookie: ${SECURE_COOKIE:true}
+  demo-password: ${SOCRE_DEMO_PASSWORD:}

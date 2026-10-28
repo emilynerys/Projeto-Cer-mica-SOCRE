@@ -1,0 +1,35 @@
+@startuml
+!pragma layout smetana
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+hide empty description
+title Estados — lançamento de produção
+
+state "Pendente" as Pendente
+state "Validado" as Validado
+
+[*] --> Pendente : registro confirmado\n[Supervisor autorizado; regras atendidas]\n/ gravar original e auditoria
+Pendente --> Pendente : corrigir\n[autor da mesma unidade OU Gestor de Produção]\n/ aplicar regras e auditar antes/depois
+Pendente --> Validado : validar\n[Gestor de Produção; regras atendidas]\n/ registrar validador, momento e auditoria
+Validado --> Validado : corrigir\n[Gestor de Produção; regras atendidas]\n/ preservar situação e auditar antes/depois
+
+Pendente : Supervisor pode editar os próprios registros da sua unidade.
+Pendente : Não integra indicadores oficiais (RN04).
+Validado : Supervisor consulta, sem edição (RN11).
+Validado : Integra indicadores oficiais, respeitando etapa e classificação.
+
+note bottom of Validado
+  A correção de Validado mantendo o estado é uma proposta
+  descrita nos pontos em aberto da versão 1.7.
+  Não há transição de retorno para Pendente definida nos requisitos.
+  Cancelado não foi incluído: depende de aprovação de novo requisito.
+end note
+
+note bottom of Pendente
+  Cada alteração usa versão/bloqueio e transação com auditoria.
+  Falha de persistência ou operação negada preserva o estado anterior.
+  Cancelar o formulário antes de salvar não cria um estado Cancelado.
+  O registro e seu histórico são preservados, sem exclusão física.
+end note
+@enduml

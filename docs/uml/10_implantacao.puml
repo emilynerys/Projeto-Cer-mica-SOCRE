@@ -1,0 +1,54 @@
+@startuml
+!pragma layout smetana
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+title Implantação — acesso web e persistência em nuvem
+
+node "Celular do Supervisor" as Celular <<device>> {
+  node "Navegador móvel" as BrowserSupervisor <<executionEnvironment>> {
+    artifact "Interface de coleta\ne Meus Registros" as Coleta
+  }
+}
+
+node "Computador ou celular\nda gestão / administração" as Computador <<device>> {
+  node "Navegador" as BrowserGestao <<executionEnvironment>> {
+    artifact "Interface de consulta,\nindicadores e cadastros" as Gestao
+  }
+}
+
+cloud "Ambiente de nuvem — provedor a definir" {
+  node "Hospedagem da aplicação web" as HostApp {
+    node "Ambiente de execução" as Runtime <<executionEnvironment>> {
+      artifact "Aplicação web\nAPI, regras, autenticação e visualização" as App
+    }
+  }
+  node "Serviço de banco relacional" as HostBD {
+    database "Base centralizada\nProdução, cadastros, sessões e auditoria" as BD
+  }
+}
+
+Coleta --> App : HTTPS / internet
+Gestao --> App : HTTPS / internet
+App --> BD : conexão protegida\ncredenciais do servidor
+
+note bottom of Celular
+  Interface responsiva em português do Brasil.
+  Internet necessária para confirmar gravação.
+  Rede intermitente: informar falha/ausência de confirmação
+  e permitir conferir os registros antes de reenviar.
+  Não há sincronização offline definida no MVP.
+end note
+note bottom of Computador
+  As telas e os dados acessíveis dependem do perfil.
+  Gestores Gerais: leitura. Administrador: cadastros.
+  Supervisor: sessão >= 30 dias com renovação;
+  demais perfis: 7 dias, conforme RNF04.
+end note
+note bottom of HostBD
+  Proposta de topologia, independente de fornecedor.
+  Sem acesso direto dos navegadores ao banco.
+  Não requer servidor próprio na unidade fabril.
+  Indicadores podem ter atraso conforme a plataforma.
+end note
+@enduml

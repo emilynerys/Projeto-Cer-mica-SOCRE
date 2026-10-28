@@ -1,0 +1,59 @@
+@startuml
+!pragma layout smetana
+skinparam shadowing false
+skinparam componentStyle uml2
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+title Componentes — organização lógica proposta para o MVP
+
+package "Navegador" {
+  component "Interface web responsiva\nColeta, consulta, dashboard e cadastros" as UI
+}
+
+package "Aplicação web em nuvem" {
+  component "Entrada da aplicação / API\nRotas e respostas de erro" as API
+  component "Autenticação e autorização\nSessões, perfis e alcance por unidade" as Acesso
+  component "Produção\nRegistro, correção e validação" as Producao
+  component "Consulta operacional\nPróprios registros / todas as unidades" as Consulta
+  component "Visualização gerencial\nAgregações, milheiros e exportação" as BI
+  component "Cadastros\nUsuários, unidades e fornadas" as Cadastros
+  component "Auditoria\nEventos e diferenças imutáveis" as Auditoria
+  component "Persistência\nConsultas, transações e restrições" as Persistencia
+}
+
+database "Banco de dados relacional centralizado" as BD
+
+UI --> API : HTTPS
+API --> Acesso : autenticar e autorizar cada solicitação
+API --> Producao
+API --> Consulta
+API --> BI
+API --> Cadastros
+Producao --> Auditoria : criação, correção e validação
+Cadastros --> Auditoria : alterações administrativas
+Producao --> Persistencia
+Consulta --> Persistencia : leitura filtrada pelo alcance
+BI --> Persistencia : leitura para apresentação
+Cadastros --> Persistencia
+Acesso --> Persistencia : contas e sessões
+Auditoria --> Persistencia : somente inserção/leitura
+Persistencia --> BD : acesso controlado
+
+note bottom of Producao
+  Regras obrigatórias no servidor; validação da tela é complementar.
+  Escrita do negócio e auditoria compartilham a mesma transação.
+end note
+note bottom of BI
+  Indicadores oficiais: somente Validados.
+  Separar etapas e excluir Cru da produção acabada.
+  RF33 consulta também Pendentes para detectar presença de registro.
+  Dados originais permanecem em tijolos no banco.
+end note
+note bottom of BD
+  Diagrama de módulos lógicos, não de microsserviços.
+  A aplicação pode ser um único sistema implantável.
+  Banco protege unicidade inclusive sem fornada na Maromba;
+  auditoria não permite atualização/exclusão pelos perfis do sistema.
+  Linguagem, framework e provedor ainda não foram definidos.
+end note
+@enduml

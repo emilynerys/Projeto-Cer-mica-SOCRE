@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:fragment="head(titulo)">
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title th:text="${titulo + ' · SOCRE'}">SOCRE</title>
+  <link rel="icon" type="image/svg+xml" th:href="@{/favicon.svg}">
+  <link rel="stylesheet" th:href="@{/css/app.css}"><script th:src="@{/js/app.js}" defer></script>
+</head>
+<body>
+<header th:fragment="header" class="site-header">
+  <div class="header-inner">
+    <a class="brand" th:href="@{/}"><img th:src="@{/favicon.svg}" alt="" width="40" height="40"><span>SOCRE<small>Controle de produção</small></span></a>
+    <nav aria-label="Navegação principal" th:if="${usuarioAtual != null}">
+      <a th:if="${usuarioAtual.perfil.name() != 'ADMINISTRADOR'}" th:href="@{/producao}" th:text="${usuarioAtual.perfil.name() == 'SUPERVISOR' ? 'Meus registros' : 'Lançamentos'}"></a>
+      <a th:if="${usuarioAtual.perfil.name() == 'GESTOR_PRODUCAO' or usuarioAtual.perfil.name() == 'GESTOR_GERAL'}" th:href="@{/painel}">Indicadores</a>
+      <a th:if="${usuarioAtual.perfil.name() == 'ADMINISTRADOR'}" th:href="@{/admin}">Administração</a>
+    </nav>
+    <div class="account" th:if="${usuarioAtual != null}"><span><strong th:text="${usuarioAtual.nome}"></strong><small th:text="${usuarioAtual.perfil.descricao}"></small></span>
+      <form th:action="@{/logout}" method="post" data-logout><button class="button quiet" type="submit">Sair</button></form>
+    </div>
+  </div>
+  <div class="dev-banner" th:if="${ambienteDev}">Ambiente de demonstração · use dados de teste</div>
+</header>
+<footer th:fragment="footer" class="site-footer"><span>Cerâmica SOCRE</span><span>Registro claro. Produção acompanhada.</span></footer>
+</body></html>

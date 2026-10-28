@@ -1,0 +1,147 @@
+@startuml
+' Modelo conceitual com atributos úteis à implementação; não é um DER.
+!pragma layout smetana
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+hide empty methods
+title Classes de domínio — produção, acesso e auditoria
+
+class UnidadeFabril {
+  id : UUID
+  nome : String
+  capacidade_forno_linhas : Integer
+  situacao : ATIVA | INATIVA
+}
+
+class Usuario {
+  id : UUID
+  nome : String
+  email : String {unique}
+  senha_hash : String
+  perfil : PerfilAcesso
+  situacao : ATIVO | INATIVO
+}
+
+class Sessao {
+  id : UUID
+  token_hash : String
+  criada_em : DateTime
+  expira_em : DateTime
+  revogada_em : DateTime [0..1]
+}
+
+class Fornada {
+  id : UUID
+  codigo : String
+  situacao : ABERTA | FECHADA
+  aberta_em : DateTime
+  fechada_em : DateTime [0..1]
+}
+
+class LancamentoProducao {
+  id : UUID
+  data_producao : Date
+  etapa : MAROMBA | ENFORNA | DESENFORNA
+  situacao : PENDENTE | VALIDADO
+  registrado_em : DateTime
+  validado_em : DateTime [0..1]
+  versao : Integer
+}
+
+class ProducaoPorFormato {
+  id : UUID
+  formato : SEIS_FUROS | OITO_FUROS
+  linhas : Integer [0..1]
+}
+
+class QuantidadePorClassificacao {
+  id : UUID
+  classificacao : Classificacao
+  quantidade_tijolos : Integer
+}
+
+class EventoAuditoria <<imutavel>> {
+  id : UUID
+  acao : String
+  entidade_tipo : String
+  entidade_id : UUID
+  ocorrido_em : DateTime
+  versao_registro : Integer [0..1]
+}
+
+class AlteracaoCampo <<imutavel>> {
+  campo : String
+  valor_anterior : String [0..1]
+  valor_novo : String [0..1]
+}
+
+UnidadeFabril "0..1" -- "0..*" Usuario : vínculo
+Usuario "1" -- "0..*" Sessao : possui
+UnidadeFabril "1" -- "0..*" Fornada : pertence a
+UnidadeFabril "1" -- "0..*" LancamentoProducao : recebe
+Fornada "0..1" -- "0..*" LancamentoProducao : identifica a carga
+Usuario "1" -- "0..*" LancamentoProducao : autor
+Usuario "0..1" -- "0..*" LancamentoProducao : validador
+LancamentoProducao "1" *-- "2" ProducaoPorFormato : detalha
+ProducaoPorFormato "1" *-- "1..3" QuantidadePorClassificacao : quantifica
+Usuario "1" -- "0..*" EventoAuditoria : executa
+LancamentoProducao "0..1" -- "1..*" EventoAuditoria : histórico
+EventoAuditoria "1" *-- "0..*" AlteracaoCampo : alterações
+
+note left of Usuario
+  PerfilAcesso: SUPERVISOR_PRODUCAO,
+  GESTOR_PRODUCAO, GESTOR_GERAL, ADMINISTRADOR.
+  Unidade obrigatória para o Supervisor;
+  demais perfis têm alcance definido pela autorização.
+  Senha: hash específico para senhas com salt individual.
+  Sessão: Supervisor >= 30 dias, renovação automática;
+  demais perfis: 7 dias (RNF04).
+end note
+
+note right of ProducaoPorFormato
+  Proposta: dois formatos em cada lançamento,
+  inclusive o formato com produção zero, como no protótipo.
+  UNIQUE(lancamento_id, formato).
+  Linhas pertencem ao formato, não à classificação;
+  não multiplicar linhas por 1ª, 2ª e Cru.
+  Maromba: linhas ausentes.
+  Enforna/Desenforna: linhas inteiras >= 0.
+end note
+
+note right of QuantidadePorClassificacao
+  Classificacao: SEM_CLASSIFICACAO, PRIMEIRA, SEGUNDA, CRU.
+  Maromba/Enforna: exatamente 1 quantidade por formato,
+  com SEM_CLASSIFICACAO (valor técnico, não exibido na tela).
+  Desenforna: exatamente 3 quantidades por formato,
+  uma para cada classificação PRIMEIRA, SEGUNDA e CRU.
+  UNIQUE(producao_formato_id, classificacao).
+  Todos os campos obrigatórios; inteiros >= 0;
+  ao menos uma quantidade do lançamento > 0 (RN03).
+end note
+
+note bottom of LancamentoProducao
+  Uma data, unidade, etapa e fornada para todo o lançamento.
+  RN09: UNIQUE(unidade, data_producao, etapa, fornada).
+  Maromba: fornada ausente; impor unicidade também sem fornada
+  (índice parcial ou NULLS NOT DISTINCT, conforme o banco).
+  Enforna/Desenforna: fornada da mesma unidade, aberta na seleção.
+  Autor e momento do registro são preenchidos no servidor.
+  versao permite detectar edições concorrentes (proposta técnica).
+end note
+
+note bottom of EventoAuditoria
+  Criação guarda valores originais; correção guarda antes/depois.
+  Gravar alteração e auditoria na mesma transação.
+  Sem edição/exclusão da trilha por qualquer perfil.
+  Eventos administrativos podem não ter lançamento associado.
+  Redefinição de senha registra ação e alvo, nunca senha ou hash.
+end note
+
+note top of Fornada
+  Proposta: UNIQUE(unidade_id, codigo).
+  Fechar preserva lançamentos e histórico.
+  Capacidade do forno é configurável; não fixar 46 ou 72.
+end note
+@enduml

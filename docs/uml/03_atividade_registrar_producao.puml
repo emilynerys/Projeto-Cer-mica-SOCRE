@@ -1,0 +1,96 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+title Atividade — registro guiado de produção
+
+start
+:Verificar sessão e perfil de Supervisor;
+if (Acesso permitido?) then (sim)
+else (não)
+  :Solicitar login ou informar falta de permissão;
+  stop
+endif
+:Preencher data atual e unidade do Supervisor;
+:Permitir ajuste da data e seleção da etapa;
+
+if (Etapa = Maromba?) then (sim)
+  :Ocultar fornada, linhas e classificação;
+  :Mostrar quantidade de 6 Furos e 8 Furos;
+else (não)
+  :Listar fornadas abertas da unidade;
+  if (Existe fornada aberta?) then (sim)
+    :Selecionar uma fornada para todo o lançamento;
+  else (não)
+    :Informar necessidade de abertura pelo Gestor;
+    stop
+  endif
+  if (Etapa = Enforna?) then (sim)
+    :Mostrar quantidade e linhas por formato;
+  else (Desenforna)
+    :Mostrar 1ª qualidade, 2ª qualidade,
+    Cru e linhas por formato;
+  endif
+endif
+
+:Inicializar campos numéricos com zero;
+repeat
+  :Preencher ou revisar os campos aplicáveis;
+  :Reavaliar o formulário, limpando a indicação
+  de revisão da tentativa anterior;
+  :Verificar obrigatoriedade, inteiros >= 0
+  e alguma quantidade de tijolos > 0;
+  if (Campos válidos?) then (sim)
+    if (Enforna com divergência > 2%?) then (sim)
+      :Exibir esperado e informado por formato;
+      :Oferecer Corrigir ou Está certo, continuar;
+      note right
+        esperado = linhas x capacidade por linha
+        6 Furos: 2.200; 8 Furos: 1.610 tijolos.
+        Aviso não bloqueante; não se aplica à Desenforna.
+        Caso esperado = 0 e quantidade > 0: avisar
+        (tratamento proposto para divisão por zero).
+      end note
+      if (Continuar com os valores?) then (sim)
+        :Exibir resumo completo, incluindo zeros;
+      else (corrigir)
+        :Marcar revisão necessária;
+      endif
+    else (não)
+      :Exibir resumo completo, incluindo zeros;
+    endif
+  else (não)
+    :Indicar campos a corrigir;
+    :Marcar revisão necessária;
+  endif
+repeat while (Revisão necessária ou usuário escolheu Editar?) is (sim) not (não)
+
+if (Confirmar o resumo?) then (sim)
+  :Enviar lançamento ao servidor;
+else (cancelar)
+  :Descartar formulário sem criar lançamento;
+  stop
+endif
+
+:Revalidar sessão, perfil, unidade, campos,
+fornada e unicidade no servidor;
+if (Existe registro com a mesma chave?) then (sim)
+  :Recusar duplicidade e oferecer Meus Registros;
+  stop
+endif
+if (Demais regras atendidas?) then (sim)
+  :Gravar lançamento Pendente, detalhes e auditoria
+  em uma única transação;
+else (não)
+  :Informar erro e manter dados para correção;
+  stop
+endif
+if (Gravação confirmada pelo servidor?) then (sim)
+  :Exibir sucesso e resumo do registro salvo;
+else (não)
+  :Exibir falha ou ausência de confirmação;
+  :Preservar formulário e orientar consulta
+  a Meus Registros antes de reenviar;
+endif
+stop
+@enduml

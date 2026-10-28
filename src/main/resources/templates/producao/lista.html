@@ -1,0 +1,18 @@
+<!DOCTYPE html><html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"><head th:replace="~{fragments/layout :: head('Lançamentos')}"></head>
+<body><header th:replace="~{fragments/layout :: header}"></header><main class="container">
+  <div class="page-heading"><div><p class="eyebrow">Acompanhamento diário</p><h1 th:text="${supervisor ? 'Meus registros' : 'Lançamentos de produção'}"></h1><p class="muted" th:text="${supervisor ? 'Confira o que você registrou e corrija enquanto estiver pendente.' : 'Confira os valores antes de liberar os registros para os indicadores.'}"></p></div>
+    <a th:if="${supervisor}" class="button primary" th:href="@{/producao/maromba}"><span aria-hidden="true">+</span> Registrar Maromba</a>
+  </div>
+  <section class="panel"><form method="get" th:action="@{/producao}" class="filters">
+    <label>De<input type="date" name="inicio" th:value="${inicio}" required></label><label>Até<input type="date" name="fim" th:value="${fim}" required></label>
+    <label>Situação<select name="situacao"><option value="">Todas</option><option value="PENDENTE" th:selected="${situacao != null and situacao.name() == 'PENDENTE'}">Pendentes</option><option value="VALIDADO" th:selected="${situacao != null and situacao.name() == 'VALIDADO'}">Validados</option></select></label>
+    <button type="submit" class="button secondary">Aplicar filtros</button>
+  </form></section>
+  <section class="panel records-panel" aria-labelledby="records-title"><div class="section-heading"><h2 id="records-title">Produção registrada</h2><span class="counter" th:text="${registros.totalElements + ' registro(s)'}"></span></div>
+    <div th:if="${registros.empty}" class="empty-state"><span class="empty-mark" aria-hidden="true">▤</span><h3>Nenhum registro neste período</h3><p th:text="${supervisor ? 'O primeiro passo é registrar a produção de Maromba.' : 'Os lançamentos aparecerão aqui quando forem registrados.'}"></p><a th:if="${supervisor}" class="button primary" th:href="@{/producao/maromba}">Registrar produção</a></div>
+    <div class="table-wrap" th:unless="${registros.empty}"><table><thead><tr><th>Data / unidade</th><th>Etapa</th><th>6 furos</th><th>8 furos</th><th>Situação</th><th><span class="sr-only">Ação</span></th></tr></thead><tbody>
+      <tr th:each="l : ${registros.content}"><td data-label="Data / unidade"><strong th:text="${fmt.data(l.dataProducao)}"></strong><small th:text="${l.unidade.nome}"></small></td><td data-label="Etapa">Maromba</td><td data-label="6 furos" th:text="${fmt.inteiro(l.quantidade6f) + ' tijolos'}"></td><td data-label="8 furos" th:text="${fmt.inteiro(l.quantidade8f) + ' tijolos'}"></td><td data-label="Situação"><span class="badge" th:classappend="${l.situacao.name() == 'PENDENTE' ? 'pending' : 'validated'}" th:text="${l.situacao.descricao}"></span></td><td><a class="button quiet" th:href="@{/producao/{id}(id=${l.id})}">Abrir <span aria-hidden="true">→</span></a></td></tr>
+    </tbody></table></div>
+    <div class="pagination" th:if="${registros.totalPages > 1}"><a class="button secondary" th:if="${registros.hasPrevious()}" th:href="@{/producao(inicio=${inicio},fim=${fim},situacao=${situacao},pagina=${registros.number - 1})}">Anterior</a><span th:text="${'Página ' + (registros.number + 1) + ' de ' + registros.totalPages}"></span><a class="button secondary" th:if="${registros.hasNext()}" th:href="@{/producao(inicio=${inicio},fim=${fim},situacao=${situacao},pagina=${registros.number + 1})}">Próxima</a></div>
+  </section>
+</main><footer th:replace="~{fragments/layout :: footer}"></footer></body></html>

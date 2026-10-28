@@ -1,0 +1,76 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+autonumber
+title Sequência — indicadores oficiais e dias sem registro
+
+actor "Gestor de Produção\nou Gestor Geral" as Gestor
+boundary "Dashboard" as Tela
+control "Aplicação / API" as API
+control "Autenticação e autorização" as Acesso
+control "Serviço de visualização\n(camada de apresentação)" as BI
+database "Banco relacional" as BD
+
+Gestor -> Tela : Selecionar unidade, período, etapa e formato
+Tela -> API : Consultar indicadores(filtros)
+API -> Acesso : Validar sessão e permissão de consulta
+Acesso --> API : Perfil e alcance autorizado
+alt Sessão inválida ou perfil sem permissão
+  API --> Tela : Solicitar login ou negar acesso
+else Gestor autorizado
+  API -> BI : Consultar dados no alcance autorizado
+  BI -> BD : Buscar lançamentos Validados e detalhes,\ncom filtros de unidade, período, etapa e formato
+  BD --> BI : Quantidades em tijolos e linhas por formato
+  BI -> BI : Agregar por etapa, formato e classificação,\ncom agrupamento diário/semanal/mensal/acumulado
+  note right of BI
+    Não somar Maromba + Enforna + Desenforna (RN07).
+    Produção acabada = Desenforna de 1ª + 2ª qualidade.
+    Cru é mostrado separadamente e excluído da acabada (RN10).
+    Se houver comparação Enforna x Desenforna,
+    ela exige a mesma fornada; índice de perda está fora do MVP.
+  end note
+  BI -> BI : Converter totais para milheiros: tijolos / 1.000
+  note right of BI
+    Agregações e conversões são valores de apresentação;
+    os registros persistidos permanecem em tijolos.
+    Esta camada pode executar no servidor (decisão de arquitetura).
+  end note
+  BI -> BD : Buscar datas com qualquer lançamento na unidade/período,\nincluindo Pendentes e Validados (RF33)
+  BD --> BI : Datas com registro
+  BI -> BI : Comparar calendário do período com datas encontradas
+  note right of BI
+    Proposta para RF33: não aplicar filtros de etapa/formato
+    à presença de registro; apurar por unidade.
+    Ausência de lançamento não significa produção zero.
+    Pendência de validação não significa ausência de registro.
+  end note
+  opt RF28 implementado após definição do recorte
+    BI -> BD : Buscar capacidade positiva cadastrada da unidade
+    BD --> BI : Capacidade do forno em linhas
+    BI -> BI : Por lançamento: somar linhas dos formatos uma vez;\ncalcular 100 x linhas movimentadas / capacidade
+    note right of BI
+      Proposta provisória por lançamento e etapa.
+      Não somar linhas de várias datas/etapas como ocupação atual.
+      Fluxo de movimentação não revela ocupação instantânea;
+      o recorte do indicador precisa ser confirmado.
+    end note
+  end
+  BI --> API : Séries, totais separados e datas sem registro
+  API --> Tela : Resultado com filtros e momento da atualização
+  Tela --> Gestor : Indicadores e aviso textual com ícone/rótulo (RF33)
+  opt Exportação solicitada e funcionalidade implementada
+    Gestor -> Tela : Exportar relatório
+    Tela -> API : Solicitar PDF (RF27) ou CSV/XLS (RF21)
+    API -> Acesso : Revalidar sessão e permissão
+    Acesso --> API : Autorizar ou recusar
+    alt Exportação autorizada
+      API -> BI : Gerar arquivo com os mesmos filtros e regras
+      BI --> API : Arquivo com totais separados por etapa
+      API --> Tela : Disponibilizar download
+    else Sem permissão
+      API --> Tela : Recusar exportação
+    end
+  end
+end
+@enduml

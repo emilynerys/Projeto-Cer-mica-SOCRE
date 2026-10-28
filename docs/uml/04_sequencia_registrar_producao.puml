@@ -1,0 +1,85 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+autonumber
+title Sequência — gravar lançamento com integridade e auditoria
+
+actor "Supervisor de Produção" as Supervisor
+boundary "Formulário de produção" as Tela
+control "Aplicação / API" as API
+control "Autenticação e autorização" as Acesso
+control "Serviço de produção" as Producao
+database "Banco relacional" as BD
+
+Supervisor -> Tela : Confirmar resumo
+Tela -> API : Registrar(data, etapa, fornada, detalhes, aceite_alerta)
+API -> Acesso : Validar sessão, conta ativa e perfil
+Acesso --> API : Identidade, perfil e unidade autorizada
+
+alt Sessão inválida ou perfil diferente de Supervisor
+  API --> Tela : Solicitar login ou negar acesso
+else Acesso permitido
+  API -> Producao : Registrar dados com identidade autenticada
+  Producao -> Producao : Derivar unidade e autor da identidade;
+  Producao -> Producao : Validar campos e condições por etapa (RN03, RN06)
+  alt Campos inválidos
+    Producao --> API : Erros de preenchimento
+    API --> Tela : Exibir erros e preservar formulário
+  else Enforna divergente sem aceite dos valores atuais
+    Producao --> API : Alerta por formato: esperado x informado (RF25)
+    API --> Tela : Pedir revisão ou confirmação explícita
+    note over Tela, API
+      Se o usuário confirmar os mesmos valores,
+      repetir a solicitação com aceite_alerta.
+      Alterar valores exige recalcular o alerta.
+    end note
+  else Campos válidos e alerta resolvido, quando aplicável
+    Producao -> BD : BEGIN
+    Producao -> BD : Conferir unidade ativa e, se aplicável,\nbloquear fornada e verificar unidade + situação Aberta
+    note right of BD
+      A verificação e a gravação ocorrem na mesma transação.
+      Fechamento concorrente da fornada deve respeitar o bloqueio.
+    end note
+    alt Unidade/fornada inválida ou fornada fechada
+      Producao -> BD : ROLLBACK
+      Producao --> API : Informar regra violada e atualizar opções
+      API --> Tela : Preservar formulário e pedir revisão
+    else Contexto válido
+      Producao -> BD : INSERT lançamento Pendente e detalhes em tijolos
+      note right of BD
+        Autor e registrado_em gerados no servidor.
+        Restrição única de unidade + data + etapa + fornada.
+        A unicidade também vale para Maromba sem fornada.
+        Duplicidade é impedida mesmo com envios concorrentes.
+      end note
+      alt Violação da chave única
+        BD --> Producao : Duplicidade (RN09)
+        Producao -> BD : ROLLBACK
+        Producao --> API : Já existe lançamento nessa combinação
+        API --> Tela : Oferecer consulta a Meus Registros
+      else Inserção aceita
+        Producao -> BD : INSERT auditoria de criação com valores originais
+        alt Falha ao persistir dados ou auditoria
+          Producao -> BD : ROLLBACK
+          Producao --> API : Gravação não concluída
+          API --> Tela : Erro explícito, sem mensagem de sucesso
+        else Dados e auditoria gravados
+          Producao -> BD : COMMIT
+          BD --> Producao : Confirmação de persistência
+          Producao --> API : ID, resumo e situação Pendente
+          API --> Tela : Confirmação de gravação
+          Tela --> Supervisor : Registrado com sucesso
+        end
+      end
+    end
+  end
+end
+
+note over Supervisor, Tela
+  Falha de rede pode ocorrer antes ou depois do COMMIT.
+  Sem resposta, informar que não foi possível confirmar o envio;
+  preservar os campos e orientar consulta aos próprios registros.
+  Reenvio não cria duplicata graças à RN09.
+end note
+@enduml

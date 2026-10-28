@@ -1,0 +1,20 @@
+<!DOCTYPE html><html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Entrar')}"></head>
+<body class="login-page">
+<header class="login-brand"><a class="brand" th:href="@{/}"><img th:src="@{/favicon.svg}" alt="" width="44" height="44"><span>SOCRE<small>Cerâmica vermelha</small></span></a></header>
+<main class="login-layout">
+  <section class="login-story"><p class="eyebrow">Da produção à informação</p><h1>Cada registro<br>conta uma parte<br>da nossa produção.</h1><p>Um lugar para registrar, conferir e acompanhar o trabalho de cada dia.</p><div class="brick-pattern" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div><span class="story-foot">Maromba · Enforna · Desenforna</span></section>
+  <section class="login-card" aria-labelledby="login-title"><p class="eyebrow">Bem-vindo</p><h2 id="login-title">Entre na sua conta</h2><p class="muted">Use o e-mail cadastrado pelo Administrador.</p>
+    <div class="notice error" role="alert" th:if="${param.erro}">E-mail ou senha incorretos, ou conta indisponível.</div>
+    <div class="notice" role="status" th:if="${param.expirou}">Sua sessão terminou. Entre novamente.</div>
+    <div class="notice success" role="status" th:if="${param.saiu}">Você saiu da sua conta.</div>
+    <form th:action="@{/login}" method="post" class="stack">
+      <label for="email">E-mail<input id="email" name="email" type="email" autocomplete="username" required autofocus placeholder="voce@empresa.com.br"></label>
+      <label for="password">Senha<span class="password-field"><input id="password" name="password" type="password" autocomplete="current-password" required><button type="button" class="password-toggle" data-toggle-password aria-controls="password" aria-pressed="false">Mostrar</button></span></label>
+      <button type="submit" class="button primary full">Entrar no sistema <span aria-hidden="true">→</span></button>
+    </form>
+    <p class="login-help">Esqueceu sua senha?<br>Peça ao Administrador para redefinir.</p>
+    <p th:if="${ambienteDev}" class="demo-note">Ambiente de demonstração com contas de teste.</p>
+  </section>
+</main><footer th:replace="~{fragments/layout :: footer}"></footer>
+</body></html>

@@ -1,0 +1,36 @@
+@startuml
+!pragma layout smetana
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+hide empty description
+title Estados — código de fornada
+
+state "Aberta" as Aberta
+state "Fechada" as Fechada
+
+[*] --> Aberta : cadastrar fornada\n[Gestor de Produção ou Administrador]\n/ vincular unidade; registrar aberta_em
+Aberta --> Fechada : fechar manualmente\n[Gestor de Produção]\n/ registrar fechada_em e auditoria
+
+Aberta : Disponível na lista de sua unidade.
+Aberta : Aceita novos vínculos de Enforna e Desenforna.
+Fechada : Indisponível para novos vínculos.
+Fechada : Preserva lançamentos e histórico existentes.
+
+note bottom of Aberta
+  Proposta: o cadastro já cria a fornada Aberta,
+  conforme o protótipo; não há estado Rascunho.
+  RF26: cadastro/manutenção pelo Administrador.
+  RF34: cadastro e operação pelo Gestor de Produção.
+  Não inferir fechamento a partir das quantidades.
+end note
+
+note bottom of Fechada
+  Sem reabertura ou exclusão previstas para este MVP.
+  Fechar não valida nem cancela os lançamentos vinculados.
+  Proposta: admitir correções dos registros existentes sem
+  trocar o vínculo fechado, conforme permissões do lançamento.
+  Compartilhar bloqueio transacional com novos lançamentos
+  para evitar gravação concorrente após o fechamento.
+end note
+@enduml

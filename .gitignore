@@ -1,0 +1,88 @@
+# Ambientes locais, extrações, evidências e bancos com dados reais
+.analysis/
+.local/
+# Estes documentos contêm contexto interno e análise de fontes reais.
+# O README e os diagramas UML documentam o projeto compartilhável.
+/docs/PLANEJAMENTO_MVP.md
+/docs/BACKLOG_MVP.md
+/docs/ANDAMENTO.md
+
+# Credenciais: somente o exemplo sem senhas deve ser versionado
+.env
+.env.*
+!.env.example
+.envrc
+local-secrets*.json
+ACESSO_LOCAL.md
+secrets/
+credentials/
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+
+# Compilação Java/Maven e caches; manter o Maven Wrapper
+target/
+out/
+build/
+*.class
+*.jar
+*.war
+*.ear
+.m2/
+
+# Bancos, exportações, backups e documentos de dados da operação
+postgres-data/
+backups/
+dumps/
+uploads/
+*.dump
+*.backup
+*.sql.gz
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+*.csv
+*.tsv
+*.xls
+*.xlsx
+*.xlsm
+*.doc
+*.docx
+# As migrations .sql em src/main/resources/db/migration permanecem versionadas.
+
+# IDEs e configuração particular da máquina
+.idea/
+.vscode/
+.settings/
+.classpath
+.project
+*.iml
+*.iws
+*.ipr
+.factorypath
+.apt_generated/
+.replit
+
+# Logs, temporários, relatórios e arquivos do sistema
+*.log
+*.pid
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+hs_err_pid*
+replay_pid*
+*.hprof
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
