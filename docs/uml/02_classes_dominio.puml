@@ -1,18 +1,26 @@
 @startuml
 ' Modelo conceitual com atributos úteis à implementação; não é um DER.
+' Atualizado com o levantamento de outubro/2026 e as decisões de 12/10 e 27–28/10/2026.
 !pragma layout smetana
 skinparam shadowing false
 skinparam classAttributeIconSize 0
 skinparam defaultFontName Arial
 skinparam defaultFontSize 13
 hide empty methods
-title Classes de domínio — produção, acesso e auditoria
+title Classes de domínio — produção, fornada, inventário, acesso e auditoria
 
 class UnidadeFabril {
   id : UUID
   nome : String
   capacidade_forno_linhas : Integer
   situacao : ATIVA | INATIVA
+}
+
+class FormatoTijolo {
+  id : UUID
+  nome : String
+  tijolos_por_linha_ref : Integer
+  situacao : ATIVO | INATIVO
 }
 
 class Usuario {
@@ -34,31 +42,71 @@ class Sessao {
 
 class Fornada {
   id : UUID
-  codigo : String
-  situacao : ABERTA | FECHADA
-  aberta_em : DateTime
-  fechada_em : DateTime [0..1]
+  mes_referencia : YearMonth
+  numero_no_mes : Integer
+  situacao : EM_ANDAMENTO | CONCLUIDA
+  iniciada_em : DateTime
+  enforna_concluida_em : DateTime [0..1]
+  inicio_esquente : DateTime [0..1]
+  inicio_queima : DateTime [0..1]
+  fim_queima : DateTime [0..1]
+  concluida_em : DateTime [0..1]
 }
 
 class LancamentoProducao {
   id : UUID
   data_producao : Date
   etapa : MAROMBA | ENFORNA | DESENFORNA
-  situacao : PENDENTE | VALIDADO
+  situacao : PENDENTE | VALIDADO | CANCELADO
+  origem : DIGITADO | IMPORTADO
   registrado_em : DateTime
   validado_em : DateTime [0..1]
+  cancelado_em : DateTime [0..1]
   versao : Integer
 }
 
 class ProducaoPorFormato {
   id : UUID
-  formato : SEIS_FUROS | OITO_FUROS
   linhas : Integer [0..1]
+  tijolos_por_linha_usado : Integer [0..1]
 }
 
 class QuantidadePorClassificacao {
   id : UUID
   classificacao : Classificacao
+  quantidade_tijolos : Integer
+}
+
+class MotivoAlteracao {
+  id : UUID
+  tipo : CORRECAO | CANCELAMENTO
+  descricao : String
+  exige_texto : Boolean
+  situacao : ATIVO | INATIVO
+}
+
+class InventarioInicial {
+  id : UUID
+  referencia_em : DateTime
+}
+
+class ConteudoInicialFornada {
+  id : UUID
+  linhas : Integer
+  quantidade_tijolos : Integer
+  estado : AGUARDANDO_QUEIMA | ASSADO
+}
+
+class SaldoInicialAcabado {
+  id : UUID
+  classificacao : PRIMEIRA | SEGUNDA
+  quantidade_tijolos : Integer
+}
+
+class VendaDiaria <<adiada>> {
+  id : UUID
+  data_nota : Date
+  classificacao : PRIMEIRA | SEGUNDA
   quantidade_tijolos : Integer
 }
 
@@ -69,6 +117,7 @@ class EventoAuditoria <<imutavel>> {
   entidade_id : UUID
   ocorrido_em : DateTime
   versao_registro : Integer [0..1]
+  texto_motivo : String [0..1]
 }
 
 class AlteracaoCampo <<imutavel>> {
@@ -81,67 +130,118 @@ UnidadeFabril "0..1" -- "0..*" Usuario : vínculo
 Usuario "1" -- "0..*" Sessao : possui
 UnidadeFabril "1" -- "0..*" Fornada : pertence a
 UnidadeFabril "1" -- "0..*" LancamentoProducao : recebe
-Fornada "0..1" -- "0..*" LancamentoProducao : identifica a carga
+Fornada "0..1" -- "0..*" LancamentoProducao : ciclo de queima
 Usuario "1" -- "0..*" LancamentoProducao : autor
 Usuario "0..1" -- "0..*" LancamentoProducao : validador
-LancamentoProducao "1" *-- "2" ProducaoPorFormato : detalha
+LancamentoProducao "1" *-- "1..*" ProducaoPorFormato : detalha
+FormatoTijolo "1" -- "0..*" ProducaoPorFormato : formato
 ProducaoPorFormato "1" *-- "1..3" QuantidadePorClassificacao : quantifica
+MotivoAlteracao "0..1" -- "0..*" LancamentoProducao : motivo do cancelamento
+UnidadeFabril "1" -- "0..1" InventarioInicial : ponto de partida
+InventarioInicial "1" *-- "0..*" ConteudoInicialFornada : forno
+Fornada "1" -- "0..*" ConteudoInicialFornada : conteúdo inicial
+FormatoTijolo "1" -- "0..*" ConteudoInicialFornada : formato
+InventarioInicial "1" *-- "0..*" SaldoInicialAcabado : produto acabado
+FormatoTijolo "1" -- "0..*" SaldoInicialAcabado : formato
+UnidadeFabril "1" -- "0..*" VendaDiaria : vendas
+FormatoTijolo "1" -- "0..*" VendaDiaria : formato
 Usuario "1" -- "0..*" EventoAuditoria : executa
 LancamentoProducao "0..1" -- "1..*" EventoAuditoria : histórico
+MotivoAlteracao "0..1" -- "0..*" EventoAuditoria : motivo da correção
 EventoAuditoria "1" *-- "0..*" AlteracaoCampo : alterações
 
 note left of Usuario
-  PerfilAcesso: SUPERVISOR_PRODUCAO,
+  PerfilAcesso: REGISTRO_PRODUCAO,
   GESTOR_PRODUCAO, GESTOR_GERAL, ADMINISTRADOR.
-  Unidade obrigatória para o Supervisor;
+  Unidade obrigatória para o Registro de Produção;
   demais perfis têm alcance definido pela autorização.
-  Senha: hash específico para senhas com salt individual.
-  Sessão: Supervisor >= 30 dias, renovação automática;
-  demais perfis: 7 dias (RNF04).
+  Gestores Gerais e Administrador: leitura de
+  produção e estoques (RN05).
+end note
+
+note right of FormatoTijolo
+  Cadastro do Administrador (RN13).
+  Valores iniciais: 6 Furos = 2.200 e
+  8 Furos = 1.610 tijolos por linha.
+  Alterar a referência não muda lançamentos
+  já gravados.
 end note
 
 note right of ProducaoPorFormato
-  Proposta: dois formatos em cada lançamento,
-  inclusive o formato com produção zero, como no protótipo.
-  UNIQUE(lancamento_id, formato).
-  Linhas pertencem ao formato, não à classificação;
-  não multiplicar linhas por 1ª, 2ª e Cru.
+  Um item por formato ativo, inclusive com zero (RN03).
   Maromba: linhas ausentes.
-  Enforna/Desenforna: linhas inteiras >= 0.
+  Enforna: linhas e tijolos_por_linha_usado
+  (sugerido pela referência, editável, RN12);
+  quantidade = linhas x tijolos_por_linha_usado,
+  também editável.
+  Desenforna: linhas desenfornadas.
+  UNIQUE(lancamento_id, formato_id).
 end note
 
 note right of QuantidadePorClassificacao
   Classificacao: SEM_CLASSIFICACAO, PRIMEIRA, SEGUNDA, CRU.
-  Maromba/Enforna: exatamente 1 quantidade por formato,
-  com SEM_CLASSIFICACAO (valor técnico, não exibido na tela).
-  Desenforna: exatamente 3 quantidades por formato,
-  uma para cada classificação PRIMEIRA, SEGUNDA e CRU.
-  UNIQUE(producao_formato_id, classificacao).
-  Todos os campos obrigatórios; inteiros >= 0;
-  ao menos uma quantidade do lançamento > 0 (RN03).
+  Maromba/Enforna: 1 quantidade SEM_CLASSIFICACAO.
+  Desenforna: PRIMEIRA, SEGUNDA e CRU.
+  CRU = retirado sem queima suficiente; volta à
+  matéria-prima ou é descartado: fora da produção
+  acabada e dos estoques (RN10).
+  Cru que fica no forno não é registrado;
+  sai depois como PRIMEIRA ou SEGUNDA.
+  Quebrados e danificados não são registrados.
+  Inteiros >= 0; ao menos uma > 0 (RN03).
 end note
 
 note bottom of LancamentoProducao
-  Uma data, unidade, etapa e fornada para todo o lançamento.
-  RN09: UNIQUE(unidade, data_producao, etapa, fornada).
-  Maromba: fornada ausente; impor unicidade também sem fornada
-  (índice parcial ou NULLS NOT DISTINCT, conforme o banco).
-  Enforna/Desenforna: fornada da mesma unidade, aberta na seleção.
+  RN09: UNIQUE(unidade, data_producao, etapa, fornada)
+  entre lançamentos não cancelados.
+  Maromba sem fornada: unicidade também sem fornada.
+  Enforna/Desenforna: fornada da mesma unidade,
+  em andamento na seleção.
   Autor e momento do registro são preenchidos no servidor.
-  versao permite detectar edições concorrentes (proposta técnica).
+  IMPORTADO: carga histórica a partir de 13/08/2026, já VALIDADO (RN22).
+  Valores fora do esperado, inclusive Desenforna acima do
+  enfornado na fornada, geram aviso, nunca bloqueio (RN14).
+end note
+
+note top of Fornada
+  Fornada = ciclo de queima (RN06).
+  UNIQUE(unidade_id, mes_referencia, numero_no_mes).
+  Até duas em andamento por unidade (RN08).
+  Conclusão manual pelo Gestor; o sistema sugere
+  quando linhas desenfornadas >= enfornadas e mostra
+  a diferença enfornado x desenfornado, sem justificativa.
+  enforna_concluida_em: marcada pelo Registro de Produção;
+  depois dela, a fornada não recebe Enforna. "Nova fornada"
+  só quando nenhuma outra estiver recebendo Enforna.
+  Horários do esquente e da queima (RN21).
+end note
+
+note bottom of InventarioInicial
+  RN20: uma vez por unidade; em Carolina,
+  13/08/2026 às 18h (primeiro "Status do Forno" completo).
+  Forno: fornadas em andamento com linhas e tijolos
+  por formato. Acabado: por formato e qualidade
+  (registrado mesmo com a RN18 adiada).
+  Lançamentos anteriores à referência são recusados.
+  Pátio fora do inventário: a cerâmica não conta o
+  tijolo em secagem. O movimento do pátio é calculado,
+  não guardado: Maromba − Enforna por período,
+  só Validados (RN19).
+end note
+
+note bottom of VendaDiaria
+  Adiada em 12/10: vendas fora por enquanto,
+  sem estoque de produto acabado (RN18).
+  Quando entrar: total do dia por formato e qualidade,
+  na data em que o cliente assina a nota.
+  Sem cliente nem preço.
 end note
 
 note bottom of EventoAuditoria
   Criação guarda valores originais; correção guarda antes/depois.
+  Correção e cancelamento guardam o motivo (RN15, RN16).
   Gravar alteração e auditoria na mesma transação.
   Sem edição/exclusão da trilha por qualquer perfil.
-  Eventos administrativos podem não ter lançamento associado.
   Redefinição de senha registra ação e alvo, nunca senha ou hash.
-end note
-
-note top of Fornada
-  Proposta: UNIQUE(unidade_id, codigo).
-  Fechar preserva lançamentos e histórico.
-  Capacidade do forno é configurável; não fixar 46 ou 72.
 end note
 @enduml

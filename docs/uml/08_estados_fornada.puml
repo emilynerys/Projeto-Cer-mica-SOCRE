@@ -4,33 +4,61 @@ skinparam shadowing false
 skinparam defaultFontName Arial
 skinparam defaultFontSize 13
 hide empty description
-title Estados — código de fornada
+title Estados — fornada (ciclo de queima do forno)
 
-state "Aberta" as Aberta
-state "Fechada" as Fechada
+state "Em andamento" as Andamento {
+  state "Enfornando" as Enfornando
+  state "Esquente" as Esquente
+  state "Queima" as Queima
+  state "Queimada" as Queimada
+  [*] --> Enfornando
+  Enfornando --> Esquente : registrar início do esquente\n[Registro de Produção] (RN21)
+  Esquente --> Queima : registrar início da queima\n[Registro de Produção] (RN21)
+  Queima --> Queimada : registrar fim da queima\n[Registro de Produção] (RN21)
+}
+state "Concluída" as Concluida
 
-[*] --> Aberta : cadastrar fornada\n[Gestor de Produção ou Administrador]\n/ vincular unidade; registrar aberta_em
-Aberta --> Fechada : fechar manualmente\n[Gestor de Produção]\n/ registrar fechada_em e auditoria
+[*] --> Andamento : primeira Enforna de um novo ciclo\n[Registro de Produção escolhe "Nova fornada"]\n/ gerar número sequencial do mês (RN06)
+Andamento --> Concluida : concluir\n[Gestor de Produção confirma]\n/ registrar concluída_em e auditoria (RN08)
+Concluida --> [*]
 
-Aberta : Disponível na lista de sua unidade.
-Aberta : Aceita novos vínculos de Enforna e Desenforna.
-Fechada : Indisponível para novos vínculos.
-Fechada : Preserva lançamentos e histórico existentes.
+Enfornando : Aceita Enforna até a marcação "Enforna concluída".
+Esquente : Ainda pode aceitar Enforna (outro lado do forno),
+Esquente : se a Enforna não foi marcada como concluída.
+Queima : Aceita Desenforna das linhas já queimadas
+Queima : e Enforna, se ainda não concluída.
+Queimada : Aceita Desenforna até a última linha.
+Concluida : Indisponível para novos lançamentos.
+Concluida : Preserva lançamentos e histórico.
 
-note bottom of Aberta
-  Proposta: o cadastro já cria a fornada Aberta,
-  conforme o protótipo; não há estado Rascunho.
-  RF26: cadastro/manutenção pelo Administrador.
-  RF34: cadastro e operação pelo Gestor de Produção.
-  Não inferir fechamento a partir das quantidades.
+note right of Andamento
+  O forno não precisa estar cheio para o esquente
+  ou a queima começarem (RN21).
+  Duração calculada: esquente (cerca de 24 h) e queima
+  (1h30 a 2h por linha); velocidade em linhas por 24 h.
+  Até duas fornadas em andamento na mesma unidade:
+  a anterior sendo desenfornada e a seguinte sendo
+  enfornada nas linhas já esvaziadas (RN08).
+  "Enforna concluída": marcação do Registro de Produção,
+  independente das fases da queima. Depois dela a fornada
+  não recebe Enforna, e só então "Nova fornada" aparece.
+  Fornadas que já estavam no forno em 13/08/2026 entram
+  pelo inventário inicial (RN20).
 end note
 
-note bottom of Fechada
-  Sem reabertura ou exclusão previstas para este MVP.
-  Fechar não valida nem cancela os lançamentos vinculados.
-  Proposta: admitir correções dos registros existentes sem
-  trocar o vínculo fechado, conforme permissões do lançamento.
-  Compartilhar bloqueio transacional com novos lançamentos
-  para evitar gravação concorrente após o fechamento.
+note bottom of Concluida
+  Numeração reinicia a cada mês por unidade:
+  "2ª fornada de outubro/2026".
+  Sem reabertura ou exclusão neste MVP.
+  Concluir não valida nem cancela lançamentos vinculados.
+  Conclusão manual (decidido em 12/10): quando as linhas
+  desenfornadas alcançam as enfornadas, o sistema sugere
+  "Concluir a fornada?". Não conclui sozinho, porque as
+  linhas são contadas no olho e o Cru que fica no forno
+  é recontado na Enforna seguinte.
+  Na conclusão, o sistema mostra a diferença entre o
+  enfornado e o desenfornado, para mais ou para menos,
+  sem exigir justificativa (estimativa, quebras e Cru
+  que ficou no forno).
 end note
 @enduml

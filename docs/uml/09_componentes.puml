@@ -13,10 +13,10 @@ package "Navegador" {
 package "Aplicação web em nuvem" {
   component "Entrada da aplicação / API\nRotas e respostas de erro" as API
   component "Autenticação e autorização\nSessões, perfis e alcance por unidade" as Acesso
-  component "Produção\nRegistro, correção e validação" as Producao
+  component "Produção\nRegistro, correção, cancelamento,\nvalidação e fornadas" as Producao
   component "Consulta operacional\nPróprios registros / todas as unidades" as Consulta
   component "Visualização gerencial\nAgregações, milheiros e exportação" as BI
-  component "Cadastros\nUsuários, unidades e fornadas" as Cadastros
+  component "Cadastros\nUsuários, unidades, formatos, referências,\nmotivos, inventário e carga histórica" as Cadastros
   component "Auditoria\nEventos e diferenças imutáveis" as Auditoria
   component "Persistência\nConsultas, transações e restrições" as Persistencia
 }
@@ -29,7 +29,7 @@ API --> Producao
 API --> Consulta
 API --> BI
 API --> Cadastros
-Producao --> Auditoria : criação, correção e validação
+Producao --> Auditoria : criação, correção, cancelamento e validação
 Cadastros --> Auditoria : alterações administrativas
 Producao --> Persistencia
 Consulta --> Persistencia : leitura filtrada pelo alcance
@@ -47,6 +47,7 @@ note bottom of BI
   Indicadores oficiais: somente Validados.
   Separar etapas e excluir Cru da produção acabada.
   RF33 consulta também Pendentes para detectar presença de registro.
+  Movimento do pátio: Maromba − Enforna por período, sem saldo (RN19).
   Dados originais permanecem em tijolos no banco.
 end note
 note bottom of BD
@@ -54,6 +55,7 @@ note bottom of BD
   A aplicação pode ser um único sistema implantável.
   Banco protege unicidade inclusive sem fornada na Maromba;
   auditoria não permite atualização/exclusão pelos perfis do sistema.
-  Linguagem, framework e provedor ainda não foram definidos.
+  Implementação atual: Java, Spring Boot e PostgreSQL;
+  provedor de nuvem ainda não definido.
 end note
 @enduml

@@ -1,6 +1,8 @@
 @startuml
-' Base: documento de requisitos v1.7 e protótipo de telas.
+' Base: documento de requisitos v1.7, protótipo de telas e levantamento de outubro/2026.
 ' Decisões de modelagem e divergências estão no README.md.
+' Revisado em 12/10/2026: perfil renomeado, vendas adiadas, carga histórica e validação em lote.
+' Revisado em 28/10/2026: movimento do pátio (sem contagem), inventário inicial em 13/08 e Enforna concluída.
 !pragma layout smetana
 left to right direction
 skinparam shadowing false
@@ -10,11 +12,11 @@ skinparam defaultFontSize 13
 title Casos de uso — acompanhamento da produção cerâmica
 
 actor "Usuário" as Usuario <<abstrato>>
-actor "Supervisor de\nProdução" as Supervisor
+actor "Registro de\nProdução" as Registro
 actor "Gestor de\nProdução" as Gestor
 actor "Gestores Gerais" as Gerais
 actor "Administrador\ndo Sistema" as Admin
-Usuario <|-- Supervisor
+Usuario <|-- Registro
 Usuario <|-- Gestor
 Usuario <|-- Gerais
 Usuario <|-- Admin
@@ -22,47 +24,71 @@ Usuario <|-- Admin
 rectangle "Sistema de acompanhamento da produção" {
   usecase "Autenticar e manter sessão\nRF01–RF03" as Login
   usecase "Encerrar sessão\nRF31" as Sair
-  usecase "Registrar produção\nRF04–RF14, RF25" as Registrar
+  usecase "Registrar produção\nRF04–RF14, RF25; RN12, RN14" as Registrar
+  usecase "Iniciar nova fornada\nRN06" as NovaFornada
+  usecase "Marcar Enforna concluída\nRN08" as EnfornaConcluida
+  usecase "Registrar horários da queima\nRN21" as Queima
   usecase "Consultar lançamentos\nRF15, RF29" as Consultar
-  usecase "Corrigir lançamento\nRF16, RF30" as Corrigir
+  usecase "Corrigir lançamento\nRF16, RF30; RN15" as Corrigir
+  usecase "Cancelar lançamento\nRN16" as Cancelar
   usecase "Validar lançamento\nRF17" as Validar
+  usecase "Validar em lote\nbaixa prioridade" as ValidarLote
+  usecase "Concluir fornada\nRN08" as Concluir
   usecase "Consultar indicadores\nRF19, RF20, RF24, RF33\nRF28: desejável" as Indicadores
-  usecase "Exportar relatório\nRF27: importante\nRF21: desejável" as Exportar
-  usecase "Cadastrar / manter\ncódigos de fornada\nRF26, RF34" as Fornadas
-  usecase "Abrir / fechar fornada\nRF34" as CicloFornada
+  usecase "Consultar fornadas em andamento\ne movimento do pátio\nRN08, RN19" as Estoques
+  usecase "Exportar relatório em PDF\nRF27: importante\nRF21: desejável" as Exportar
   usecase "Gerenciar usuários e perfis\nRF22" as Usuarios
   usecase "Redefinir senha\nRF32" as Senha
   usecase "Gerenciar unidades\nRF23" as Unidades
+  usecase "Manter valores de referência\ne listas de motivos\nRN13, RN15, RN16" as Referencias
+  usecase "Informar inventário inicial\ne importar carga histórica\nRN20, RN22" as SaldoInicial
 }
+
+ValidarLote .> Validar : <<include>>
+Registrar .> NovaFornada : <<extend>>\nprimeira Enforna\nde um novo ciclo
 
 Usuario -- Login
 Usuario -- Sair
-Supervisor -- Registrar
-Supervisor -- Consultar
-Supervisor -- Corrigir
+Registro -- Registrar
+Registro -- EnfornaConcluida
+Registro -- Queima
+Registro -- Consultar
+Registro -- Corrigir
+Registro -- Cancelar
+Registro -- Estoques
 Gestor -- Consultar
 Gestor -- Corrigir
+Gestor -- Cancelar
 Gestor -- Validar
+Gestor -- ValidarLote
+Gestor -- Concluir
 Gestor -- Indicadores
+Gestor -- Estoques
 Gestor -- Exportar
-Gestor -- Fornadas
-Gestor -- CicloFornada
 Gerais -- Consultar
 Gerais -- Indicadores
+Gerais -- Estoques
 Gerais -- Exportar
+Admin -- Indicadores
+Admin -- Estoques
 Admin -- Usuarios
 Admin -- Senha
 Admin -- Unidades
-Admin -- Fornadas
+Admin -- Referencias
+Admin -- SaldoInicial
 
 legend bottom left
   Sessão válida é precondição dos casos protegidos.
-  Supervisor: consulta próprios registros da sua unidade;
-  pode corrigi-los somente enquanto Pendentes.
-  Gestor de Produção: consulta/correção em todas as unidades.
-  Gestores Gerais: leitura de produção em todas as unidades.
-  Criação, correção, validação e redefinição de senha geram auditoria.
-  Administrador sem dashboard, conforme descrição dos atores;
-  a matriz do protótipo diverge (ver README).
+  Registro de Produção: perfil de quem registra (na piloto, a secretária,
+  a partir das contagens do encarregado da produção).
+  Registro de Produção consulta, corrige e cancela só os próprios Pendentes da sua unidade.
+  Gestor de Produção: consulta, corrige e cancela em todas as unidades; valida todos os dias.
+  Gestores Gerais e Administrador: leitura de produção e estoques (RN05).
+  Administrador escreve apenas cadastros, referências, inventário inicial e carga histórica.
+  Criação, correção, cancelamento, validação, inventário e redefinição de senha geram auditoria.
+  Valores fora do esperado geram aviso com um toque, nunca bloqueio (RN14).
+  Pátio: só movimento (Maromba − Enforna); a cerâmica não conta o tijolo em secagem (RN19).
+  Fora por enquanto: vendas e estoque de produto acabado (RN18 adiada).
+  Inventário inicial em 13/08/2026, 18h (RN20); carga histórica a partir dessa data entra Validada (RN22).
 endlegend
 @enduml
