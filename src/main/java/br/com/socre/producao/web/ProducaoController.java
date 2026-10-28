@@ -35,11 +35,11 @@ public class ProducaoController {
         if (inicio == null) inicio = service.hoje().minusDays(14);
         if (fim == null) fim = service.hoje();
         validarPeriodo(inicio, fim);
-        boolean supervisor = p.perfil() == Perfil.SUPERVISOR;
-        var resultado = lancamentos.consultar(inicio, fim, supervisor ? p.id() : null, supervisor ? p.unidadeId() : null,
+        boolean registroProducao = p.perfil() == Perfil.REGISTRO_PRODUCAO;
+        var resultado = lancamentos.consultar(inicio, fim, registroProducao ? p.id() : null, registroProducao ? p.unidadeId() : null,
             situacao, PageRequest.of(Math.max(0, pagina), 30, Sort.by(Sort.Order.asc("situacao"), Sort.Order.desc("dataProducao"), Sort.Order.desc("criadoEm"))));
         model.addAttribute("registros", resultado); model.addAttribute("inicio", inicio); model.addAttribute("fim", fim);
-        model.addAttribute("situacao", situacao); model.addAttribute("supervisor", supervisor);
+        model.addAttribute("situacao", situacao); model.addAttribute("registroProducao", registroProducao);
         return "producao/lista";
     }
     @GetMapping("/maromba") String nova(@AuthenticationPrincipal UsuarioAutenticado p, Model model) {
@@ -49,7 +49,7 @@ public class ProducaoController {
     @GetMapping("/{id}") String detalhe(@PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado p, Model model) {
         var l = service.consultar(id, p); model.addAttribute("registro", l);
         model.addAttribute("historico", auditoria.findByLancamentoIdOrderByOcorridoEmAsc(id));
-        model.addAttribute("podeEditar", l.getSituacao() == Situacao.PENDENTE && (p.perfil() == Perfil.SUPERVISOR || p.perfil() == Perfil.GESTOR_PRODUCAO));
+        model.addAttribute("podeEditar", l.getSituacao() == Situacao.PENDENTE && (p.perfil() == Perfil.REGISTRO_PRODUCAO || p.perfil() == Perfil.GESTOR_PRODUCAO));
         model.addAttribute("podeValidar", l.getSituacao() == Situacao.PENDENTE && p.perfil() == Perfil.GESTOR_PRODUCAO);
         return "producao/detalhe";
     }

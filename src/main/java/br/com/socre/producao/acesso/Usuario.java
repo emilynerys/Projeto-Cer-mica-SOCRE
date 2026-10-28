@@ -27,5 +27,5 @@ public class Usuario {
     public Unidade getUnidade() { return unidade; }
     public boolean isAtivo() { return ativo; }
     public int getVersaoAcesso() { return versaoAcesso; }
-    public boolean podeEntrar() { return ativo && (perfil != Perfil.SUPERVISOR || (unidade != null && unidade.isAtiva())); }
+    public boolean podeEntrar() { return ativo && (perfil != Perfil.REGISTRO_PRODUCAO || (unidade != null && unidade.isAtiva())); }
 }

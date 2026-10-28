@@ -38,7 +38,7 @@ public class VerificarSessaoFilter extends OncePerRequestFilter {
                 return;
             }
             session.setMaxInactiveInterval(politica.inatividadeSegundos(p.perfil()));
-            if (p.perfil() == Perfil.SUPERVISOR) {
+            if (p.perfil() == Perfil.REGISTRO_PRODUCAO) {
                 cookies.writeCookieValue(new CookieSerializer.CookieValue(req, res, session.getId()));
             }
         }

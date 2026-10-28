@@ -25,7 +25,7 @@ public class ProducaoService {
     @Transactional
     public Lancamento criar(UsuarioAutenticado p, MarombaForm f) {
         var autor = usuarioAtivo(p);
-        if (autor.getPerfil() != Perfil.SUPERVISOR) negar();
+        if (autor.getPerfil() != Perfil.REGISTRO_PRODUCAO) negar();
         validarValores(f);
         // PostgreSQL transaction lock serializes retries of the exact same request key.
         jdbc.query("select pg_advisory_xact_lock(hashtextextended(?, 0))", rs -> {}, f.getChaveEnvio().toString());
@@ -48,7 +48,7 @@ public class ProducaoService {
         var usuario = usuarioAtivo(p);
         var l = lancamentos.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         if (usuario.getPerfil() == Perfil.ADMINISTRADOR) negar();
-        if (usuario.getPerfil() == Perfil.SUPERVISOR && (!l.getAutor().getId().equals(usuario.getId())
+        if (usuario.getPerfil() == Perfil.REGISTRO_PRODUCAO && (!l.getAutor().getId().equals(usuario.getId())
                 || !l.getUnidade().getId().equals(usuario.getUnidade().getId()))) negar();
         return l;
     }
@@ -74,7 +74,7 @@ public class ProducaoService {
         lancamentos.flush(); auditar(l, gestor, "VALIDACAO", antes); return l;
     }
     public void exigirEdicao(Lancamento l, UsuarioAutenticado p) {
-        if ((p.perfil() != Perfil.SUPERVISOR && p.perfil() != Perfil.GESTOR_PRODUCAO) || l.getSituacao() != Situacao.PENDENTE) negar();
+        if ((p.perfil() != Perfil.REGISTRO_PRODUCAO && p.perfil() != Perfil.GESTOR_PRODUCAO) || l.getSituacao() != Situacao.PENDENTE) negar();
     }
     private Usuario usuarioAtivo(UsuarioAutenticado p) {
         if (p == null) throw new AccessDeniedException("Entre novamente.");

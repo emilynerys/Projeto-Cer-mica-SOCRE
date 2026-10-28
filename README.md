@@ -5,14 +5,14 @@ Aplicação web desenvolvida para um TCC, destinada ao registro, à conferência
 ## O que já funciona
 
 - Login e logout, quatro perfis, bloqueio de contas/unidades inativas e permissões verificadas no servidor.
-- Supervisor registra Maromba de sua unidade em tijolos de 6 e 8 furos, confere antes de salvar e consulta somente os próprios registros.
+- O perfil Registro de Produção (antes chamado Supervisor) registra Maromba de sua unidade em tijolos de 6 e 8 furos, confere antes de salvar e consulta somente os próprios registros.
 - Correção de lançamentos pendentes, conferência e validação pelo Gestor de Produção.
 - Histórico com autor, horário e valores antes/depois; gravação e auditoria na mesma transação.
 - Proteção contra duplicidade diária, reenvio da mesma requisição e alterações simultâneas.
 - Indicadores básicos de Maromba por período/unidade, em milheiros, considerando somente lançamentos validados.
 - Aviso de dias sem registro ao selecionar uma unidade. Ausência de registro não vira produção zero.
 - Formulários responsivos e rascunho na mesma aba do navegador em caso de falha de conexão.
-- Sessões no PostgreSQL: Supervisor com 30 dias de inatividade; demais perfis com limite absoluto de 7 dias.
+- Sessões no PostgreSQL: Registro de Produção com 30 dias de inatividade; demais perfis com limite absoluto de 7 dias.
 
 Administração possui apenas consulta dos usuários/unidades de demonstração nesta entrega. Cadastro e redefinição de senha, fornadas, Enforna, Desenforna, correção após validação, relatórios e publicação estão pendentes. O ambiente atual é local e não está pronto para dados reais.
 
@@ -39,7 +39,7 @@ Na primeira execução, o script prepara os bancos, gera senhas aleatórias, bai
 
 | Perfil de demonstração | E-mail |
 | --- | --- |
-| Supervisor | supervisor@socre.local |
+| Registro de Produção | registro@socre.local |
 | Gestor de Produção | gestor@socre.local |
 | Gestor Geral | geral@socre.local |
 | Administrador | admin@socre.local |
@@ -150,12 +150,12 @@ git diff --cached
 
 ## Demonstrar o primeiro fluxo
 
-1. Entre como Supervisor e abra **Registrar Maromba**.
+1. Entre como Registro de Produção e abra **Registrar Maromba**.
 2. Informe 12.000 tijolos de 6 furos e 3.000 de 8 furos em uma data sem registro. Confira e salve.
 3. O lançamento deve aparecer como **Pendente**. Corrija para 13.000 de 6 furos e veja o histórico.
 4. Saia e entre como Gestor de Produção. Abra o lançamento, confira e valide.
 5. Abra Indicadores: o total deve ser **16,0 milheiros de Maromba**. Esses valores não representam produção acabada.
-6. Entre como Gestor Geral para consultar. O Supervisor já não pode editar esse registro validado.
+6. Entre como Gestor Geral para consultar. O Registro de Produção já não pode editar esse registro validado.
 
 O rascunho sobrevive a recarregamentos na mesma aba. Sair da conta o remove; fechar a aba normalmente encerra esse armazenamento. Não há fila offline nem envio automático posterior. O botão **Descartar rascunho** permite carregar a versão atual do servidor após conflito de edição.
 

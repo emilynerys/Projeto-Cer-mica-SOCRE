@@ -31,8 +31,8 @@ public class SecurityConfig {
                 .requestMatchers("/login", "/css/**", "/js/**", "/error", "/favicon.svg").permitAll()
                 .requestMatchers("/admin/**").hasRole("ADMINISTRADOR")
                 .requestMatchers("/painel/**").hasAnyRole("GESTOR_PRODUCAO", "GESTOR_GERAL")
-                .requestMatchers("/producao/maromba", "/producao/maromba/**").hasRole("SUPERVISOR")
-                .requestMatchers("/producao/**").hasAnyRole("SUPERVISOR", "GESTOR_PRODUCAO", "GESTOR_GERAL")
+                .requestMatchers("/producao/maromba", "/producao/maromba/**").hasRole("REGISTRO_PRODUCAO")
+                .requestMatchers("/producao/**").hasAnyRole("REGISTRO_PRODUCAO", "GESTOR_PRODUCAO", "GESTOR_GERAL")
                 .anyRequest().authenticated())
             .formLogin(login -> login.loginPage("/login").usernameParameter("email")
                 .successHandler((req, res, auth) -> {

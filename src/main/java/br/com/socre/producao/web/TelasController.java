@@ -15,7 +15,7 @@ public class TelasController {
     @GetMapping("/login") String login() { return "login"; }
     @GetMapping("/") String inicio(@AuthenticationPrincipal UsuarioAutenticado p) {
         return switch (p.perfil()) {
-            case SUPERVISOR, GESTOR_PRODUCAO -> "redirect:/producao";
+            case REGISTRO_PRODUCAO, GESTOR_PRODUCAO -> "redirect:/producao";
             case GESTOR_GERAL -> "redirect:/painel";
             case ADMINISTRADOR -> "redirect:/admin";
         };
