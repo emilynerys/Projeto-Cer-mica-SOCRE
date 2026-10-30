@@ -1,6 +1,8 @@
 @startuml
-' Modelo conceitual com atributos úteis à implementação; não é um DER.
-' Atualizado com o levantamento de outubro/2026 e as decisões de 12/10 e 27–28/10/2026.
+' Modelo conceitual com atributos úteis à implementação; o modelo lógico do banco
+' está em docs/modelo-banco-socre.html e segue as mesmas classes.
+' Atualizado com o levantamento de outubro/2026, as decisões de 12/10 e 27–28/10/2026
+' e a separação das etapas em 30/10/2026.
 !pragma layout smetana
 skinparam shadowing false
 skinparam classAttributeIconSize 0
@@ -12,14 +14,14 @@ title Classes de domínio — produção, fornada, inventário, acesso e auditor
 class UnidadeFabril {
   id : UUID
   nome : String
-  capacidade_forno_linhas : Integer
+  linhas_forno : Integer
   situacao : ATIVA | INATIVA
 }
 
 class FormatoTijolo {
   id : UUID
   nome : String
-  tijolos_por_linha_ref : Integer
+  tijolos_por_linha : Integer
   situacao : ATIVO | INATIVO
 }
 
@@ -34,18 +36,15 @@ class Usuario {
 
 class Sessao {
   id : UUID
-  token_hash : String
   criada_em : DateTime
   expira_em : DateTime
-  revogada_em : DateTime [0..1]
 }
 
 class Fornada {
   id : UUID
-  mes_referencia : YearMonth
-  numero_no_mes : Integer
+  mes : YearMonth
+  numero : Integer
   situacao : EM_ANDAMENTO | CONCLUIDA
-  iniciada_em : DateTime
   enforna_concluida_em : DateTime [0..1]
   inicio_esquente : DateTime [0..1]
   inicio_queima : DateTime [0..1]
@@ -53,28 +52,31 @@ class Fornada {
   concluida_em : DateTime [0..1]
 }
 
-class LancamentoProducao {
+abstract class RegistroEtapa {
   id : UUID
-  data_producao : Date
-  etapa : MAROMBA | ENFORNA | DESENFORNA
+  data : Date
   situacao : PENDENTE | VALIDADO | CANCELADO
   origem : DIGITADO | IMPORTADO
-  registrado_em : DateTime
+  criado_em : DateTime
   validado_em : DateTime [0..1]
-  cancelado_em : DateTime [0..1]
   versao : Integer
 }
 
-class ProducaoPorFormato {
-  id : UUID
-  linhas : Integer [0..1]
-  tijolos_por_linha_usado : Integer [0..1]
+class Maromba {
+  quantidade : Integer
 }
 
-class QuantidadePorClassificacao {
-  id : UUID
-  classificacao : Classificacao
-  quantidade_tijolos : Integer
+class Enforna {
+  linhas : Integer
+  tijolos_por_linha : Integer
+  quantidade : Integer
+}
+
+class Desenforna {
+  linhas : Integer
+  primeira : Integer
+  segunda : Integer
+  cru : Integer
 }
 
 class MotivoAlteracao {
@@ -87,68 +89,51 @@ class MotivoAlteracao {
 
 class InventarioInicial {
   id : UUID
-  referencia_em : DateTime
-}
-
-class ConteudoInicialFornada {
-  id : UUID
-  linhas : Integer
-  quantidade_tijolos : Integer
-  estado : AGUARDANDO_QUEIMA | ASSADO
-}
-
-class SaldoInicialAcabado {
-  id : UUID
-  classificacao : PRIMEIRA | SEGUNDA
-  quantidade_tijolos : Integer
+  data_hora : DateTime
+  estado : AGUARDANDO_QUEIMA | ASSADO | ACABADO_1A | ACABADO_2A
+  linhas : Integer [0..1]
+  quantidade : Integer
 }
 
 class VendaDiaria <<adiada>> {
   id : UUID
   data_nota : Date
   classificacao : PRIMEIRA | SEGUNDA
-  quantidade_tijolos : Integer
+  quantidade : Integer
 }
 
 class EventoAuditoria <<imutavel>> {
   id : UUID
-  acao : String
-  entidade_tipo : String
-  entidade_id : UUID
-  ocorrido_em : DateTime
-  versao_registro : Integer [0..1]
+  acao : CRIACAO | CORRECAO | VALIDACAO | CANCELAMENTO | IMPORTACAO
+  tabela : String
+  id_registro : UUID [0..1]
+  data_hora : DateTime
+  antes : Texto [0..1]
+  depois : Texto [0..1]
   texto_motivo : String [0..1]
 }
 
-class AlteracaoCampo <<imutavel>> {
-  campo : String
-  valor_anterior : String [0..1]
-  valor_novo : String [0..1]
-}
+RegistroEtapa <|-- Maromba
+RegistroEtapa <|-- Enforna
+RegistroEtapa <|-- Desenforna
 
 UnidadeFabril "0..1" -- "0..*" Usuario : vínculo
 Usuario "1" -- "0..*" Sessao : possui
-UnidadeFabril "1" -- "0..*" Fornada : pertence a
-UnidadeFabril "1" -- "0..*" LancamentoProducao : recebe
-Fornada "0..1" -- "0..*" LancamentoProducao : ciclo de queima
-Usuario "1" -- "0..*" LancamentoProducao : autor
-Usuario "0..1" -- "0..*" LancamentoProducao : validador
-LancamentoProducao "1" *-- "1..*" ProducaoPorFormato : detalha
-FormatoTijolo "1" -- "0..*" ProducaoPorFormato : formato
-ProducaoPorFormato "1" *-- "1..3" QuantidadePorClassificacao : quantifica
-MotivoAlteracao "0..1" -- "0..*" LancamentoProducao : motivo do cancelamento
-UnidadeFabril "1" -- "0..1" InventarioInicial : ponto de partida
-InventarioInicial "1" *-- "0..*" ConteudoInicialFornada : forno
-Fornada "1" -- "0..*" ConteudoInicialFornada : conteúdo inicial
-FormatoTijolo "1" -- "0..*" ConteudoInicialFornada : formato
-InventarioInicial "1" *-- "0..*" SaldoInicialAcabado : produto acabado
-FormatoTijolo "1" -- "0..*" SaldoInicialAcabado : formato
+UnidadeFabril "1" -- "0..*" Fornada : forno
+UnidadeFabril "1" -- "0..*" Maromba : produz
+Fornada "1" -- "0..*" Enforna : recebe tijolo
+Fornada "1" -- "0..*" Desenforna : libera tijolo
+FormatoTijolo "1" -- "0..*" RegistroEtapa : formato
+Usuario "1" -- "0..*" RegistroEtapa : autor
+Usuario "0..1" -- "0..*" RegistroEtapa : validador
+UnidadeFabril "1" -- "0..*" InventarioInicial : ponto de partida
+Fornada "0..1" -- "0..*" InventarioInicial : conteúdo inicial
+FormatoTijolo "1" -- "0..*" InventarioInicial : formato
 UnidadeFabril "1" -- "0..*" VendaDiaria : vendas
 FormatoTijolo "1" -- "0..*" VendaDiaria : formato
 Usuario "1" -- "0..*" EventoAuditoria : executa
-LancamentoProducao "0..1" -- "1..*" EventoAuditoria : histórico
-MotivoAlteracao "0..1" -- "0..*" EventoAuditoria : motivo da correção
-EventoAuditoria "1" *-- "0..*" AlteracaoCampo : alterações
+MotivoAlteracao "0..1" -- "0..*" EventoAuditoria : motivo
+RegistroEtapa "0..1" -- "0..*" EventoAuditoria : histórico
 
 note left of Usuario
   PerfilAcesso: REGISTRO_PRODUCAO,
@@ -163,49 +148,50 @@ note right of FormatoTijolo
   Cadastro do Administrador (RN13).
   Valores iniciais: 6 Furos = 2.200 e
   8 Furos = 1.610 tijolos por linha.
-  Alterar a referência não muda lançamentos
+  Alterar a referência não muda registros
   já gravados.
 end note
 
-note right of ProducaoPorFormato
-  Um item por formato ativo, inclusive com zero (RN03).
-  Maromba: linhas ausentes.
-  Enforna: linhas e tijolos_por_linha_usado
-  (sugerido pela referência, editável, RN12);
-  quantidade = linhas x tijolos_por_linha_usado,
-  também editável.
-  Desenforna: linhas desenfornadas.
-  UNIQUE(lancamento_id, formato_id).
-end note
-
-note right of QuantidadePorClassificacao
-  Classificacao: SEM_CLASSIFICACAO, PRIMEIRA, SEGUNDA, CRU.
-  Maromba/Enforna: 1 quantidade SEM_CLASSIFICACAO.
-  Desenforna: PRIMEIRA, SEGUNDA e CRU.
-  CRU = retirado sem queima suficiente; volta à
-  matéria-prima ou é descartado: fora da produção
-  acabada e dos estoques (RN10).
-  Cru que fica no forno não é registrado;
-  sai depois como PRIMEIRA ou SEGUNDA.
-  Quebrados e danificados não são registrados.
-  Inteiros >= 0; ao menos uma > 0 (RN03).
-end note
-
-note bottom of LancamentoProducao
-  RN09: UNIQUE(unidade, data_producao, etapa, fornada)
-  entre lançamentos não cancelados.
-  Maromba sem fornada: unicidade também sem fornada.
-  Enforna/Desenforna: fornada da mesma unidade,
-  em andamento na seleção.
+note top of RegistroEtapa
+  Cada registro é UM formato em UM dia de UMA etapa.
+  A tela mostra os formatos ativos juntos; ao salvar,
+  cada formato com quantidade > 0 vira um registro
+  (formato sem produção não gera registro, RN03).
+  Cada etapa é uma tabela própria no banco, com estes
+  atributos comuns repetidos.
   Autor e momento do registro são preenchidos no servidor.
   IMPORTADO: carga histórica a partir de 13/08/2026, já VALIDADO (RN22).
   Valores fora do esperado, inclusive Desenforna acima do
   enfornado na fornada, geram aviso, nunca bloqueio (RN14).
 end note
 
+note bottom of Maromba
+  Sem fornada: o tijolo cru vai para o pátio.
+  RN09: UNIQUE(unidade, formato, data)
+  entre registros não cancelados.
+end note
+
+note bottom of Enforna
+  tijolos_por_linha: sugerido pela referência,
+  editável (RN12); quantidade = linhas x
+  tijolos_por_linha, também editável.
+  RN09: UNIQUE(fornada, formato, data)
+  entre registros não cancelados.
+end note
+
+note bottom of Desenforna
+  primeira + segunda = produção acabada.
+  CRU = retirado sem queima suficiente; volta à
+  matéria-prima ou é descartado: fora da produção
+  acabada e dos estoques (RN10). Cru que fica no
+  forno não é registrado. Quebrados não são registrados.
+  RN09: UNIQUE(fornada, formato, data)
+  entre registros não cancelados.
+end note
+
 note top of Fornada
   Fornada = ciclo de queima (RN06).
-  UNIQUE(unidade_id, mes_referencia, numero_no_mes).
+  UNIQUE(unidade, mes, numero).
   Até duas em andamento por unidade (RN08).
   Conclusão manual pelo Gestor; o sistema sugere
   quando linhas desenfornadas >= enfornadas e mostra
@@ -219,10 +205,10 @@ end note
 note bottom of InventarioInicial
   RN20: uma vez por unidade; em Carolina,
   13/08/2026 às 18h (primeiro "Status do Forno" completo).
-  Forno: fornadas em andamento com linhas e tijolos
-  por formato. Acabado: por formato e qualidade
+  Forno (AGUARDANDO_QUEIMA, ASSADO): com fornada e linhas.
+  Acabado (ACABADO_1A, ACABADO_2A): sem fornada
   (registrado mesmo com a RN18 adiada).
-  Lançamentos anteriores à referência são recusados.
+  Registros anteriores à referência são recusados.
   Pátio fora do inventário: a cerâmica não conta o
   tijolo em secagem. O movimento do pátio é calculado,
   não guardado: Maromba − Enforna por período,
@@ -238,8 +224,10 @@ note bottom of VendaDiaria
 end note
 
 note bottom of EventoAuditoria
-  Criação guarda valores originais; correção guarda antes/depois.
+  Criação guarda os valores originais; correção guarda antes/depois.
   Correção e cancelamento guardam o motivo (RN15, RN16).
+  tabela + id_registro apontam para Maromba, Enforna,
+  Desenforna ou outro registro (sem chave estrangeira).
   Gravar alteração e auditoria na mesma transação.
   Sem edição/exclusão da trilha por qualquer perfil.
   Redefinição de senha registra ação e alvo, nunca senha ou hash.

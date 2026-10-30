@@ -13,7 +13,7 @@ control "Serviço de produção" as Producao
 database "Banco relacional" as BD
 
 Registro -> Tela : Confirmar resumo
-Tela -> API : Registrar(data, etapa, fornada, detalhes, aceite_alerta)
+Tela -> API : Registrar(data, etapa, fornada, valores por formato, aceite_alerta)
 API -> Acesso : Validar sessão, conta ativa e perfil
 Acesso --> API : Identidade, perfil e unidade autorizada
 
@@ -50,12 +50,12 @@ else Acesso permitido
       Producao --> API : Informar regra violada e atualizar opções
       API --> Tela : Preservar formulário e pedir revisão
     else Contexto válido
-      Producao -> BD : INSERT lançamento Pendente e detalhes em tijolos
+      Producao -> BD : INSERT na tabela da etapa: um registro Pendente\npor formato com quantidade > 0, em tijolos
       note right of BD
-        Autor e registrado_em gerados no servidor.
-        Restrição única de unidade + data + etapa + fornada,
-        entre lançamentos não cancelados.
-        A unicidade também vale para Maromba sem fornada.
+        Autor e criado_em gerados no servidor.
+        Restrição única por etapa, entre registros não cancelados:
+        Maromba: unidade + formato + data;
+        Enforna e Desenforna: fornada + formato + data.
         Duplicidade é impedida mesmo com envios concorrentes.
       end note
       alt Violação da chave única

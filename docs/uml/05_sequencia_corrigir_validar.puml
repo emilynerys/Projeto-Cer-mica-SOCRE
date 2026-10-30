@@ -30,7 +30,7 @@ else Perfil elegível
     Corrigir e cancelar exigem motivo da lista (RN15, RN16).
     Validar: apenas Gestor de Produção e registro Pendente.
     Registro Cancelado não aceita nenhuma operação.
-    Autor e registrado_em não são alterados pela correção.
+    Autor e criado_em não são alterados pela correção.
   end note
   alt Registro ausente, operação sem permissão ou versão desatualizada
     Producao -> BD : ROLLBACK
@@ -51,10 +51,10 @@ else Perfil elegível
       API --> Tela : Permitir revisão sem perder os dados
     else Dados válidos e eventual alerta confirmado
       opt Operação = corrigir
-        Producao -> BD : UPDATE cabeçalho permitido e detalhes;\npreservar situação e incrementar versão
+        Producao -> BD : UPDATE do registro da etapa (um formato);\npreservar situação e incrementar versão
       end
       opt Operação = cancelar
-        Producao -> BD : UPDATE situação = Cancelado,\nmotivo, cancelado_em e versão
+        Producao -> BD : UPDATE situação = Cancelado e versão;\nmotivo e momento ficam na auditoria
       end
       opt Operação = validar
         Producao -> BD : UPDATE situação = Validado,\nvalidador, validado_em e versão

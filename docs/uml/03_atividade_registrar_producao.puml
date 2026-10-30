@@ -95,8 +95,9 @@ if (Existe registro não cancelado com a mesma chave?) then (sim)
   stop
 endif
 if (Demais regras atendidas?) then (sim)
-  :Gravar lançamento Pendente, detalhes e auditoria
-  em uma única transação (e a nova fornada, se escolhida);
+  :Gravar um registro Pendente por formato com quantidade > 0
+  na tabela da etapa (Maromba, Enforna ou Desenforna) e a
+  auditoria em uma única transação (e a nova fornada, se escolhida);
 else (não)
   :Informar erro e manter dados para correção;
   stop
