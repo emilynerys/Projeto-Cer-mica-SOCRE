@@ -1,0 +1,56 @@
+<!DOCTYPE html><html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"><head th:replace="~{fragments/layout :: head('Inventário inicial')}"></head>
+<body><header th:replace="~{fragments/layout :: header}"></header><main class="container narrow">
+  <a class="back-link" th:href="@{/admin}">← Voltar à administração</a>
+  <div class="page-heading"><div><p class="eyebrow">Ponto de partida</p><h1>Inventário inicial</h1><p class="muted">O que havia no forno e no estoque no momento em que a unidade começa a usar o sistema. É informado uma vez só.</p></div>
+    <form method="get" th:action="@{/admin/inventario}" class="inline-form" th:if="${unidades.size() > 1}"><label>Unidade<select name="unidade" data-auto-submit><option th:each="u : ${unidades}" th:value="${u.id}" th:text="${u.nome}" th:selected="${u.id == tela.idUnidade}"></option></select></label><noscript><button class="button secondary" type="submit">Ver</button></noscript></form>
+  </div>
+  <div class="notice success" role="status" th:if="${sucesso}" th:text="${sucesso}"></div>
+  <div class="notice error" role="alert" th:if="${mensagemErro}" th:text="${mensagemErro}"></div>
+
+  <section class="panel form-panel" th:if="${!registrado.empty}">
+    <div class="section-heading flush"><h2>Inventário registrado</h2><span class="badge validated">Informado</span></div>
+    <p class="field-help">Referência: <strong th:text="${fmt.horario(registrado[0].dataHora)}"></strong>. Lançamentos até o dia da referência são recusados.</p>
+    <div class="table-wrap"><table><thead><tr><th>Situação</th><th>Formato</th><th>Fornada</th><th>Linhas</th><th>Tijolos</th></tr></thead><tbody>
+      <tr th:each="i : ${registrado}"><td data-label="Situação" th:text="${i.estado.descricao}"></td><td data-label="Formato" th:text="${i.formato.nome}"></td>
+        <td data-label="Fornada" th:text="${i.fornada == null ? '—' : i.fornada.identificacao}"></td><td data-label="Linhas" th:text="${i.linhas == null ? '—' : i.linhas}"></td>
+        <td data-label="Tijolos" th:text="${fmt.inteiro(i.quantidade)}"></td></tr>
+    </tbody></table></div>
+  </section>
+
+  <form th:if="${registrado.empty and tela.idUnidade != null}" th:action="@{/admin/inventario}" th:object="${tela}" method="post" class="panel form-panel stack">
+    <input type="hidden" th:field="*{idUnidade}">
+    <label for="referencia">Data e hora da contagem<input type="datetime-local" th:field="*{referencia}" th:max="${agora}" required></label>
+    <p class="field-help">Os lançamentos de Maromba, Enforna e Desenforna só serão aceitos a partir do dia seguinte a esta data.</p>
+
+    <fieldset class="format-block" th:each="c, s : *{cargas}">
+      <legend th:text="${'Fornada no forno ' + s.count}"></legend>
+      <p class="field-help" th:if="${s.index == 1}">Preencha só se havia duas fornadas no forno ao mesmo tempo.</p>
+      <div class="format-blocks">
+        <label>Mês da fornada<input type="month" th:field="*{cargas[__${s.index}__].mes}" th:max="${#temporals.format(agora, 'yyyy-MM')}"></label>
+        <label>Número no mês<input type="number" th:field="*{cargas[__${s.index}__].numero}" min="1" max="99" step="1" inputmode="numeric"></label>
+      </div>
+      <label>Situação do tijolo<select th:field="*{cargas[__${s.index}__].estado}"><option th:each="e : ${estadosNoForno}" th:value="${e}" th:text="${e.descricao}"></option></select></label>
+      <div class="format-blocks">
+        <div class="stack" th:each="formato : ${formatos}" data-enforna-item th:attr="data-tijolos-por-linha=${formato.tijolosPorLinha}">
+          <strong th:text="${formato.nome}"></strong>
+          <label>Linhas<input type="number" th:name="${'cargas[' + s.index + '].itens[' + formato.id + '].linhas'}" th:value="${c.itens[formato.id]?.linhas}" min="0" max="1000" step="1" inputmode="numeric" data-linhas></label>
+          <label>Tijolos<input type="number" th:name="${'cargas[' + s.index + '].itens[' + formato.id + '].quantidade'}" th:value="${c.itens[formato.id]?.quantidade}" min="0" max="1000000000" step="1" inputmode="numeric" data-total></label>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset class="format-block">
+      <legend>Produto acabado no estoque</legend>
+      <div class="format-blocks">
+        <div class="stack" th:each="formato : ${formatos}">
+          <strong th:text="${formato.nome}"></strong>
+          <label>1ª qualidade<input type="number" th:name="${'primeira[' + formato.id + ']'}" th:value="${tela.primeira[formato.id]}" min="0" max="1000000000" step="1" inputmode="numeric"></label>
+          <label>2ª qualidade<input type="number" th:name="${'segunda[' + formato.id + ']'}" th:value="${tela.segunda[formato.id]}" min="0" max="1000000000" step="1" inputmode="numeric"></label>
+        </div>
+      </div>
+      <p class="field-help">O pátio (tijolo cru fora do forno) não entra no inventário.</p>
+    </fieldset>
+    <p class="field-help">Deixe em branco o que não existia. Depois de salvo, o inventário não pode ser repetido.</p>
+    <button type="submit" class="button primary full">Salvar inventário inicial</button>
+  </form>
+</main><footer th:replace="~{fragments/layout :: footer}"></footer></body></html>
