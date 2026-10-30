@@ -1,0 +1,35 @@
+<!DOCTYPE html><html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"><head th:replace="~{fragments/layout :: head('Registrar Desenforna')}"></head>
+<body><header th:replace="~{fragments/layout :: header}"></header><main class="container narrow">
+  <a class="back-link" th:href="${registro == null} ? @{/producao} : @{/producao/desenforna/{id}(id=${registro.id})}">← Voltar</a>
+  <div class="page-heading"><div><p class="eyebrow" th:text="${unidade.nome}"></p><h1 th:text="${registro == null ? 'Registrar Desenforna' : 'Corrigir Desenforna de ' + registro.formato.nome}"></h1><p class="muted" th:text="${registro == null ? 'Informe as linhas que saíram do forno e quantos tijolos de cada qualidade.' : 'Cada formato tem um registro próprio. Aqui você corrige só este.'}"></p></div></div>
+  <form th:action="${registro == null} ? @{/producao/desenforna/nova} : @{/producao/desenforna/{id}/editar(id=${registro.id})}" th:object="${form}" method="post" class="panel form-panel stack">
+    <input type="hidden" th:field="*{chaveEnvio}"><input type="hidden" th:field="*{versao}">
+    <div class="notice error" role="alert" th:if="${mensagemErro}" th:text="${mensagemErro}"></div>
+    <div th:replace="~{producao/etapa-avisos :: avisos}"></div>
+    <label for="data">Data da Desenforna<input type="date" th:field="*{data}" th:max="${hoje}" required></label>
+    <th:block th:if="${registro == null}">
+      <label for="idFornada">Fornada<select th:field="*{idFornada}" required>
+        <option th:if="${fornadasDisponiveis.empty}" value="">Nenhuma fornada em andamento</option>
+        <option th:each="f : ${fornadasDisponiveis}" th:value="${f.id}" th:text="${f.identificacao}"></option>
+      </select></label>
+      <p class="field-help">Normalmente é a fornada mais antiga, a que já foi queimada.</p>
+    </th:block>
+    <th:block th:if="${registro != null}"><input type="hidden" th:field="*{idFornada}"><p class="field-help">Fornada: <strong th:text="${registro.fornada.identificacao}"></strong></p></th:block>
+    <div class="format-blocks">
+      <fieldset class="format-block" th:each="formato : ${formatos}" data-desenforna-item>
+        <legend th:text="${formato.nome}"></legend>
+        <label>Linhas desenfornadas<input type="number" th:name="${'itens[' + formato.id + '].linhas'}" th:value="${form.itens[formato.id]?.linhas}" min="0" max="1000" step="1" inputmode="numeric" required></label>
+        <label>1ª qualidade<input type="number" th:name="${'itens[' + formato.id + '].primeira'}" th:value="${form.itens[formato.id]?.primeira}" min="0" max="1000000000" step="1" inputmode="numeric" required data-soma></label>
+        <label>2ª qualidade<input type="number" th:name="${'itens[' + formato.id + '].segunda'}" th:value="${form.itens[formato.id]?.segunda}" min="0" max="1000000000" step="1" inputmode="numeric" required data-soma></label>
+        <label>Cru que saiu do forno<input type="number" th:name="${'itens[' + formato.id + '].cru'}" th:value="${form.itens[formato.id]?.cru}" min="0" max="1000000000" step="1" inputmode="numeric" required data-soma></label>
+        <p class="field-help">Total que saiu: <strong data-soma-total>0</strong> tijolos</p>
+      </fieldset>
+    </div>
+    <p class="field-help" th:if="${registro == null}">Deixe tudo zero no formato que não foi desenfornado: ele não gera registro.</p>
+    <th:block th:if="${registro != null}">
+      <label for="idMotivo">Motivo da correção<select th:field="*{idMotivo}" required><option value="">Escolha o motivo</option><option th:each="m : ${motivosCorrecao}" th:value="${m.id}" th:text="${m.descricao}"></option></select></label>
+      <label for="textoMotivo">Descreva o motivo (obrigatório para "Outro")<input type="text" th:field="*{textoMotivo}" maxlength="500"></label>
+    </th:block>
+    <button type="submit" class="button primary full" th:disabled="${registro == null and fornadasDisponiveis.empty}" th:text="${registro == null ? 'Salvar Desenforna' : 'Salvar correção'}"></button>
+  </form>
+</main><footer th:replace="~{fragments/layout :: footer}"></footer></body></html>

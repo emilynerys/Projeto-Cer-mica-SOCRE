@@ -99,3 +99,28 @@ if (form) {
     }
   });
 }
+
+// Enforna: the total follows lines × bricks per line until the user types a different total (RN12).
+document.querySelectorAll("[data-enforna-item]").forEach(block => {
+  const lines = block.querySelector("[data-linhas]"), perLine = block.querySelector("[data-por-linha]"), total = block.querySelector("[data-total]");
+  const product = () => (Number(lines.value) || 0) * (Number(perLine.value) || 0);
+  let manual = total.value !== "" && Number(total.value) !== product();
+  const update = () => { if (!manual) total.value = product(); };
+  lines.addEventListener("input", update); perLine.addEventListener("input", update);
+  total.addEventListener("input", () => { manual = total.value !== "" && Number(total.value) !== product(); });
+  update();
+});
+
+// Desenforna: shows 1ª + 2ª + Cru of each format.
+document.querySelectorAll("[data-desenforna-item]").forEach(block => {
+  const parts = [...block.querySelectorAll("[data-soma]")], out = block.querySelector("[data-soma-total]");
+  const number = new Intl.NumberFormat("pt-BR");
+  const update = () => { out.textContent = number.format(parts.reduce((sum, input) => sum + (Number(input.value) || 0), 0)); };
+  parts.forEach(input => input.addEventListener("input", update)); update();
+});
+
+// Batch validation: "mark all" toggles the pending records of the page.
+const markAll = document.getElementById("marcar-todos");
+if (markAll) markAll.addEventListener("change", () => document.querySelectorAll("[data-lote]").forEach(box => { box.checked = markAll.checked; }));
+
+document.querySelectorAll("[data-auto-submit]").forEach(select => select.addEventListener("change", () => select.form.submit()));

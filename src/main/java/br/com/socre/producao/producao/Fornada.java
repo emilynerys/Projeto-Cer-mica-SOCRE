@@ -10,7 +10,12 @@ import java.util.*;
 @Entity @Table(name = "fornada")
 public class Fornada {
     public enum Situacao { EM_ANDAMENTO, CONCLUIDA }
-    public enum Marco { ENFORNA_CONCLUIDA, INICIO_ESQUENTE, INICIO_QUEIMA, FIM_QUEIMA }
+    public enum Marco {
+        ENFORNA_CONCLUIDA("Enforna concluída"), INICIO_ESQUENTE("Início do esquente"), INICIO_QUEIMA("Início da queima"), FIM_QUEIMA("Fim da queima");
+        private final String descricao;
+        Marco(String descricao) { this.descricao = descricao; }
+        public String getDescricao() { return descricao; }
+    }
     @Id private UUID id;
     @ManyToOne @JoinColumn(name = "id_unidade", nullable = false) private Unidade unidade;
     @Column(nullable = false) private int numero;

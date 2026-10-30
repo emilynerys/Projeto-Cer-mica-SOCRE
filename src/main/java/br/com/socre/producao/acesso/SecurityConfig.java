@@ -31,7 +31,10 @@ public class SecurityConfig {
                 .requestMatchers("/login", "/css/**", "/js/**", "/error", "/favicon.svg").permitAll()
                 .requestMatchers("/admin/**").hasRole("ADMINISTRADOR")
                 .requestMatchers("/painel/**").hasAnyRole("GESTOR_PRODUCAO", "GESTOR_GERAL")
-                .requestMatchers("/producao/maromba", "/producao/maromba/**").hasRole("REGISTRO_PRODUCAO")
+                .requestMatchers("/producao/maromba", "/producao/maromba/**", "/producao/enforna/nova", "/producao/desenforna/nova").hasRole("REGISTRO_PRODUCAO")
+                .requestMatchers("/producao/validar-lote").hasRole("GESTOR_PRODUCAO")
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/fornadas/**").hasAnyRole("REGISTRO_PRODUCAO", "GESTOR_PRODUCAO", "GESTOR_GERAL", "ADMINISTRADOR")
+                .requestMatchers("/fornadas/**").hasAnyRole("REGISTRO_PRODUCAO", "GESTOR_PRODUCAO")
                 // RN05: the Administrador reads production data but never writes it.
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/producao/**").hasAnyRole("REGISTRO_PRODUCAO", "GESTOR_PRODUCAO", "GESTOR_GERAL", "ADMINISTRADOR")
                 .requestMatchers("/producao/**").hasAnyRole("REGISTRO_PRODUCAO", "GESTOR_PRODUCAO", "GESTOR_GERAL")

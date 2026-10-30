@@ -1,0 +1,45 @@
+<!DOCTYPE html><html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"><head th:replace="~{fragments/layout :: head('Fornadas')}"></head>
+<body><header th:replace="~{fragments/layout :: header}"></header><main class="container">
+  <div class="page-heading"><div><p class="eyebrow">Forno</p><h1>Fornadas</h1><p class="muted">O que entrou e saiu de cada fornada, os horários do fogo e a conclusão pelo Gestor de Produção.</p></div>
+    <form method="get" th:action="@{/fornadas}" class="inline-form" th:if="${usuarioAtual.perfil.name() != 'REGISTRO_PRODUCAO' and unidades.size() > 1}"><label>Unidade<select name="unidade" data-auto-submit><option th:each="u : ${unidades}" th:value="${u.id}" th:text="${u.nome}" th:selected="${u.id == unidadeSelecionada}"></option></select></label><noscript><button class="button secondary" type="submit">Ver</button></noscript></form>
+  </div>
+  <div class="notice success" role="status" th:if="${sucesso}" th:text="${sucesso}"></div><div class="notice error" role="alert" th:if="${falha}" th:text="${falha}"></div>
+
+  <h2>Em andamento</h2>
+  <div class="panel empty-state" th:if="${emAndamento == null or emAndamento.empty}"><span class="empty-mark" aria-hidden="true">▤</span><h3>Nenhuma fornada em andamento</h3><p>A primeira Enforna registrada começa uma fornada nova.</p></div>
+  <section class="panel form-panel fornada" th:each="b : ${emAndamento}">
+    <div class="section-heading flush"><h3 th:text="${b.fornada.identificacao}"></h3><span class="badge pending" th:text="${b.fornada.recebendoEnforna ? 'Recebendo Enforna' : 'Enforna concluída'}"></span></div>
+    <div class="notice success" role="status" th:if="${b.sugerirConclusao()}">As linhas desenfornadas já chegaram às linhas enfornadas. Se o forno estiver vazio, o Gestor de Produção pode concluir a fornada.</div>
+    <div class="table-wrap"><table><thead><tr><th>Formato</th><th>Enfornado</th><th>Desenfornado</th><th>Acabado (1ª + 2ª)</th><th>Cru</th><th>Diferença</th></tr></thead><tbody>
+      <tr th:each="pf : ${b.formatos}"><td data-label="Formato" th:text="${pf.formato.nome}"></td>
+        <td data-label="Enfornado" th:text="${pf.linhasEnfornadas + ' linhas · ' + fmt.inteiro(pf.tijolosEnfornados)}"></td>
+        <td data-label="Desenfornado" th:text="${pf.linhasDesenfornadas + ' linhas · ' + fmt.inteiro(pf.tijolosDesenfornados)}"></td>
+        <td data-label="Acabado" th:text="${fmt.inteiro(pf.acabado)}"></td><td data-label="Cru" th:text="${fmt.inteiro(pf.cru)}"></td>
+        <td data-label="Diferença" th:text="${fmt.inteiro(pf.diferenca())}"></td></tr>
+      <tr class="total-row"><td data-label="Formato"><strong>Total</strong></td><td data-label="Enfornado" th:text="${b.linhasEnfornadas() + ' linhas · ' + fmt.inteiro(b.tijolosEnfornados())}"></td><td data-label="Desenfornado" th:text="${b.linhasDesenfornadas() + ' linhas · ' + fmt.inteiro(b.tijolosDesenfornados())}"></td><td></td><td></td><td data-label="Diferença" th:text="${fmt.inteiro(b.diferenca())}"></td></tr>
+    </tbody></table></div>
+    <dl class="review-list marcos">
+      <div th:each="m : ${marcos}"><dt th:text="${m.descricao}"></dt><dd th:text="${fmt.horario(m.name() == 'ENFORNA_CONCLUIDA' ? b.fornada.enfornaConcluidaEm : (m.name() == 'INICIO_ESQUENTE' ? b.fornada.inicioEsquente : (m.name() == 'INICIO_QUEIMA' ? b.fornada.inicioQueima : b.fornada.fimQueima)))}"></dd></div>
+      <div th:if="${b.horasEsquente != null}"><dt>Duração do esquente</dt><dd th:text="${#numbers.formatDecimal(b.horasEsquente, 1, 1, 'COMMA') + ' h'}"></dd></div>
+      <div th:if="${b.horasQueima != null}"><dt>Duração da queima</dt><dd th:text="${#numbers.formatDecimal(b.horasQueima, 1, 1, 'COMMA') + ' h'}"></dd></div>
+      <div th:if="${b.linhasPor24h() != null}"><dt>Linhas queimadas por 24 horas</dt><dd th:text="${#numbers.formatDecimal(b.linhasPor24h(), 1, 1, 'COMMA')}"></dd></div>
+    </dl>
+    <form th:if="${podeRegistrarMarco}" class="marco-form" th:action="@{/fornadas/{id}/marco(id=${b.fornada.id})}" method="post"><input type="hidden" name="versao" th:value="${b.fornada.versao}">
+      <label>Registrar horário<select name="marco" required><option th:each="m : ${marcos}" th:value="${m.name()}" th:text="${m.descricao}"></option></select></label>
+      <label>Quando<input type="datetime-local" name="quando" th:value="${agora}" th:max="${agora}"></label>
+      <button class="button secondary" type="submit">Registrar</button></form>
+    <details th:if="${podeConcluir}"><summary>Concluir esta fornada</summary><form class="stack" th:action="@{/fornadas/{id}/concluir(id=${b.fornada.id})}" method="post"><input type="hidden" name="versao" th:value="${b.fornada.versao}"><p class="field-help">Conclua quando o forno estiver vazio. A diferença entre o que saiu e o que entrou fica registrada.</p><button class="button primary" type="submit">Confirmar conclusão</button></form></details>
+  </section>
+
+  <h2>Concluídas recentemente</h2>
+  <section class="panel records-panel"><div th:if="${concluidas == null or concluidas.empty}" class="empty-state"><p>Nenhuma fornada concluída ainda.</p></div>
+    <div class="table-wrap" th:unless="${concluidas == null or concluidas.empty}"><table><thead><tr><th>Fornada</th><th>Enfornado</th><th>Desenfornado</th><th>Diferença</th><th>Linhas por 24 h</th><th>Concluída em</th></tr></thead><tbody>
+      <tr th:each="b : ${concluidas}"><td data-label="Fornada" th:text="${b.fornada.identificacao}"></td>
+        <td data-label="Enfornado" th:text="${b.linhasEnfornadas() + ' linhas · ' + fmt.inteiro(b.tijolosEnfornados())}"></td>
+        <td data-label="Desenfornado" th:text="${b.linhasDesenfornadas() + ' linhas · ' + fmt.inteiro(b.tijolosDesenfornados())}"></td>
+        <td data-label="Diferença" th:text="${fmt.inteiro(b.diferenca())}"></td>
+        <td data-label="Linhas por 24 h" th:text="${b.linhasPor24h() == null ? '—' : #numbers.formatDecimal(b.linhasPor24h(), 1, 1, 'COMMA')}"></td>
+        <td data-label="Concluída em" th:text="${fmt.horario(b.fornada.concluidaEm)}"></td></tr>
+    </tbody></table></div>
+  </section>
+</main><footer th:replace="~{fragments/layout :: footer}"></footer></body></html>

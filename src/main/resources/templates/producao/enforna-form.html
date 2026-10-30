@@ -1,0 +1,35 @@
+<!DOCTYPE html><html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"><head th:replace="~{fragments/layout :: head('Registrar Enforna')}"></head>
+<body><header th:replace="~{fragments/layout :: header}"></header><main class="container narrow">
+  <a class="back-link" th:href="${registro == null} ? @{/producao} : @{/producao/enforna/{id}(id=${registro.id})}">← Voltar</a>
+  <div class="page-heading"><div><p class="eyebrow" th:text="${unidade.nome}"></p><h1 th:text="${registro == null ? 'Registrar Enforna' : 'Corrigir Enforna de ' + registro.formato.nome}"></h1><p class="muted" th:text="${registro == null ? 'Informe quantas linhas de cada formato entraram no forno.' : 'Cada formato tem um registro próprio. Aqui você corrige só este.'}"></p></div></div>
+  <form th:action="${registro == null} ? @{/producao/enforna/nova} : @{/producao/enforna/{id}/editar(id=${registro.id})}" th:object="${form}" method="post" class="panel form-panel stack">
+    <input type="hidden" th:field="*{chaveEnvio}"><input type="hidden" th:field="*{versao}">
+    <div class="notice error" role="alert" th:if="${mensagemErro}" th:text="${mensagemErro}"></div>
+    <div th:replace="~{producao/etapa-avisos :: avisos}"></div>
+    <label for="data">Data da Enforna<input type="date" th:field="*{data}" th:max="${hoje}" required></label>
+    <th:block th:if="${registro == null}">
+      <label for="idFornada">Fornada<select th:field="*{idFornada}">
+        <option th:each="f : ${fornadasDisponiveis}" th:value="${f.id}" th:text="${f.identificacao}"></option>
+        <option th:if="${podeAbrirNova}" value="">Começar nova fornada</option>
+      </select></label>
+      <p class="field-help" th:if="${fornadasDisponiveis.empty and !podeAbrirNova}">Não há fornada recebendo Enforna e já existem duas em andamento. O Gestor de Produção precisa concluir a mais antiga.</p>
+      <p class="field-help" th:if="${!fornadasDisponiveis.empty}">Quando a fornada estiver cheia, marque "Enforna concluída" na tela de Fornadas. Só depois disso dá para começar outra.</p>
+    </th:block>
+    <th:block th:if="${registro != null}"><input type="hidden" th:field="*{idFornada}"><p class="field-help">Fornada: <strong th:text="${registro.fornada.identificacao}"></strong></p></th:block>
+    <div class="format-blocks">
+      <fieldset class="format-block" th:each="formato : ${formatos}" data-enforna-item>
+        <legend th:text="${formato.nome}"></legend>
+        <label>Linhas enfornadas<input type="number" th:name="${'itens[' + formato.id + '].linhas'}" th:value="${form.itens[formato.id]?.linhas}" min="0" max="1000" step="1" inputmode="numeric" required data-linhas></label>
+        <label>Tijolos por linha<input type="number" th:name="${'itens[' + formato.id + '].tijolosPorLinha'}" th:value="${form.itens[formato.id]?.tijolosPorLinha}" min="1" max="100000" step="1" inputmode="numeric" required data-por-linha></label>
+        <label>Total de tijolos<input type="number" th:name="${'itens[' + formato.id + '].quantidade'}" th:value="${form.itens[formato.id]?.quantidade}" min="0" max="1000000000" step="1" inputmode="numeric" data-total></label>
+        <p class="field-help">O total é calculado (linhas × tijolos por linha). Se o real for outro, altere o total.</p>
+      </fieldset>
+    </div>
+    <p class="field-help" th:if="${registro == null}">Deixe zero linhas no formato que não foi enfornado: ele não gera registro.</p>
+    <th:block th:if="${registro != null}">
+      <label for="idMotivo">Motivo da correção<select th:field="*{idMotivo}" required><option value="">Escolha o motivo</option><option th:each="m : ${motivosCorrecao}" th:value="${m.id}" th:text="${m.descricao}"></option></select></label>
+      <label for="textoMotivo">Descreva o motivo (obrigatório para "Outro")<input type="text" th:field="*{textoMotivo}" maxlength="500"></label>
+    </th:block>
+    <button type="submit" class="button primary full" th:text="${registro == null ? 'Salvar Enforna' : 'Salvar correção'}"></button>
+  </form>
+</main><footer th:replace="~{fragments/layout :: footer}"></footer></body></html>

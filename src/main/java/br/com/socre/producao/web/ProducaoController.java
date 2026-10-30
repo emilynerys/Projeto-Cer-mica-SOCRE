@@ -23,22 +23,64 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @Controller @RequestMapping("/producao")
 public class ProducaoController {
     private final ProducaoService service; private final MarombaRepository marombas; private final UnidadeRepository unidades;
-    public ProducaoController(ProducaoService service, MarombaRepository marombas, UnidadeRepository unidades) {
-        this.service = service; this.marombas = marombas; this.unidades = unidades;
+    private final EnfornaRepository enfornas; private final DesenfornaRepository desenfornas;
+    private final EnfornaService enfornaService; private final DesenfornaService desenfornaService;
+    public ProducaoController(ProducaoService service, MarombaRepository marombas, UnidadeRepository unidades, EnfornaRepository enfornas,
+            DesenfornaRepository desenfornas, EnfornaService enfornaService, DesenfornaService desenfornaService) {
+        this.service = service; this.marombas = marombas; this.unidades = unidades; this.enfornas = enfornas; this.desenfornas = desenfornas;
+        this.enfornaService = enfornaService; this.desenfornaService = desenfornaService;
     }
+    /** One line of the list, whatever the stage; the key "tabela:id" feeds the batch validation (RF36). */
+    public record Linha(String etapa, String url, LocalDate data, String unidade, String fornada, String formato, String resumo,
+            Situacao situacao, Instant criadoEm, String chave) {}
+    private static final TemplateAdvice.Formatos FMT = new TemplateAdvice.Formatos();
+
     @GetMapping String lista(@AuthenticationPrincipal UsuarioAutenticado p, Model model,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fim,
-            @RequestParam(required = false) Situacao situacao, @RequestParam(defaultValue = "0") int pagina) {
+            @RequestParam(required = false) Situacao situacao, @RequestParam(required = false) String etapa,
+            @RequestParam(defaultValue = "0") int pagina) {
         if (inicio == null) inicio = service.hoje().minusDays(14);
         if (fim == null) fim = service.hoje();
         validarPeriodo(inicio, fim);
         boolean registroProducao = p.perfil() == Perfil.REGISTRO_PRODUCAO;
-        var resultado = marombas.consultar(inicio, fim, registroProducao ? p.id() : null, registroProducao ? p.unidadeId() : null, situacao,
-            PageRequest.of(Math.max(0, pagina), 30, Sort.by(Sort.Order.asc("situacao"), Sort.Order.desc("data"), Sort.Order.desc("criadoEm"), Sort.Order.asc("formato.nome"))));
+        UUID autor = registroProducao ? p.id() : null, unidade = registroProducao ? p.unidadeId() : null;
+        var linhas = new ArrayList<Linha>();
+        if (etapa == null || etapa.equals("MAROMBA"))
+            for (var m : marombas.listar(inicio, fim, autor, unidade, situacao))
+                linhas.add(new Linha("Maromba", "/producao/" + m.getId(), m.getData(), m.getUnidade().getNome(), null, m.getFormato().getNome(),
+                    FMT.inteiro(m.getQuantidade()) + " tijolos", m.getSituacao(), m.getCriadoEm(), "maromba:" + m.getId()));
+        if (etapa == null || etapa.equals("ENFORNA"))
+            for (var e : enfornas.consultar(inicio, fim, autor, unidade, situacao))
+                linhas.add(new Linha("Enforna", "/producao/enforna/" + e.getId(), e.getData(), e.getUnidade().getNome(), e.getFornada().getIdentificacao(),
+                    e.getFormato().getNome(), e.getLinhas() + " linhas · " + FMT.inteiro(e.getQuantidade()) + " tijolos", e.getSituacao(), e.getCriadoEm(), "enforna:" + e.getId()));
+        if (etapa == null || etapa.equals("DESENFORNA"))
+            for (var d : desenfornas.consultar(inicio, fim, autor, unidade, situacao))
+                linhas.add(new Linha("Desenforna", "/producao/desenforna/" + d.getId(), d.getData(), d.getUnidade().getNome(), d.getFornada().getIdentificacao(),
+                    d.getFormato().getNome(), d.getLinhas() + " linhas · 1ª " + FMT.inteiro(d.getPrimeira()) + " · 2ª " + FMT.inteiro(d.getSegunda())
+                    + " · Cru " + FMT.inteiro(d.getCru()), d.getSituacao(), d.getCriadoEm(), "desenforna:" + d.getId()));
+        // Pending first, then the most recent production day.
+        linhas.sort(Comparator.comparing((Linha l) -> l.situacao() != Situacao.PENDENTE).thenComparing(Linha::data, Comparator.reverseOrder())
+            .thenComparing(Linha::criadoEm, Comparator.reverseOrder()).thenComparing(Linha::formato));
+        int tamanho = 30, pag = Math.max(0, pagina), de = Math.min(pag * tamanho, linhas.size());
+        var resultado = new PageImpl<>(linhas.subList(de, Math.min(de + tamanho, linhas.size())), PageRequest.of(pag, tamanho), linhas.size());
         model.addAttribute("registros", resultado); model.addAttribute("inicio", inicio); model.addAttribute("fim", fim);
-        model.addAttribute("situacao", situacao); model.addAttribute("registroProducao", registroProducao);
+        model.addAttribute("situacao", situacao); model.addAttribute("etapa", etapa); model.addAttribute("registroProducao", registroProducao);
+        model.addAttribute("podeValidarLote", p.perfil() == Perfil.GESTOR_PRODUCAO);
         return "producao/lista";
+    }
+    /** RF36: validates the selected Pending records of any stage at once. */
+    @PostMapping("/validar-lote") String validarLote(@RequestParam(required = false) List<String> ids, @AuthenticationPrincipal UsuarioAutenticado p, RedirectAttributes flash) {
+        var porTabela = new HashMap<String, List<UUID>>();
+        for (var chave : ids == null ? List.<String>of() : ids) {
+            var partes = chave.split(":", 2);
+            if (partes.length == 2) porTabela.computeIfAbsent(partes[0], k -> new ArrayList<>()).add(UUID.fromString(partes[1]));
+        }
+        int validados = service.validarLote(porTabela.getOrDefault("maromba", List.of()), p)
+            + enfornaService.validarLote(porTabela.getOrDefault("enforna", List.of()), p)
+            + desenfornaService.validarLote(porTabela.getOrDefault("desenforna", List.of()), p);
+        flash.addFlashAttribute("sucesso", validados == 0 ? "Nenhum registro pendente foi selecionado." : validados + " registro(s) validado(s).");
+        return "redirect:/producao";
     }
     @GetMapping("/maromba") String nova(@AuthenticationPrincipal UsuarioAutenticado p, Model model) {
         var f = new MarombaForm(); f.setData(service.hoje()); f.setChaveEnvio(UUID.randomUUID());

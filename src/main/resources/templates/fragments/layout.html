@@ -11,7 +11,8 @@
   <div class="header-inner">
     <a class="brand" th:href="@{/}"><img th:src="@{/favicon.svg}" alt="" width="40" height="40"><span>SOCRE<small>Controle de produção</small></span></a>
     <nav aria-label="Navegação principal" th:if="${usuarioAtual != null}">
-      <a th:if="${usuarioAtual.perfil.name() != 'ADMINISTRADOR'}" th:href="@{/producao}" th:text="${usuarioAtual.perfil.name() == 'REGISTRO_PRODUCAO' ? 'Meus registros' : 'Lançamentos'}"></a>
+      <a th:href="@{/producao}" th:text="${usuarioAtual.perfil.name() == 'REGISTRO_PRODUCAO' ? 'Meus registros' : 'Lançamentos'}"></a>
+      <a th:href="@{/fornadas}">Fornadas</a>
       <a th:if="${usuarioAtual.perfil.name() == 'GESTOR_PRODUCAO' or usuarioAtual.perfil.name() == 'GESTOR_GERAL'}" th:href="@{/painel}">Indicadores</a>
       <a th:if="${usuarioAtual.perfil.name() == 'ADMINISTRADOR'}" th:href="@{/admin}">Administração</a>
     </nav>

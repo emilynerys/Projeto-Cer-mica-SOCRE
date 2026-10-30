@@ -11,6 +11,8 @@ public interface MarombaRepository extends JpaRepository<Maromba, UUID> {
     boolean existeAtivo(UUID unidade, UUID formato, LocalDate data);
     @Query("select m from Maromba m where m.data between :inicio and :fim and (:autor is null or m.autor.id = :autor) and (:unidade is null or m.unidade.id = :unidade) and (:situacao is null or m.situacao = :situacao)")
     Page<Maromba> consultar(LocalDate inicio, LocalDate fim, UUID autor, UUID unidade, Situacao situacao, Pageable pagina);
+    @Query("select m from Maromba m where m.data between :inicio and :fim and (:autor is null or m.autor.id = :autor) and (:unidade is null or m.unidade.id = :unidade) and (:situacao is null or m.situacao = :situacao)")
+    List<Maromba> listar(LocalDate inicio, LocalDate fim, UUID autor, UUID unidade, Situacao situacao);
     interface TotalDiario {
         LocalDate getData(); UUID getFormato(); Long getQuantidade();
     }
