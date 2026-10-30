@@ -11,6 +11,12 @@ public class InventarioInicial {
     public enum Estado {
         AGUARDANDO_QUEIMA, ASSADO, ACABADO_1A, ACABADO_2A;
         public boolean noForno() { return this == AGUARDANDO_QUEIMA || this == ASSADO; }
+        public String getDescricao() {
+            return switch (this) {
+                case AGUARDANDO_QUEIMA -> "Aguardando queima"; case ASSADO -> "Assado (já queimado)";
+                case ACABADO_1A -> "Acabado de 1ª"; case ACABADO_2A -> "Acabado de 2ª";
+            };
+        }
     }
     @Id private UUID id;
     @ManyToOne @JoinColumn(name = "id_unidade", nullable = false) private Unidade unidade;

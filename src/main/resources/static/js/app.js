@@ -102,11 +102,12 @@ if (form) {
 
 // Enforna: the total follows lines × bricks per line until the user types a different total (RN12).
 document.querySelectorAll("[data-enforna-item]").forEach(block => {
+  // The bricks per line come from an input (Enforna) or from the format itself (initial inventory).
   const lines = block.querySelector("[data-linhas]"), perLine = block.querySelector("[data-por-linha]"), total = block.querySelector("[data-total]");
-  const product = () => (Number(lines.value) || 0) * (Number(perLine.value) || 0);
+  const product = () => (Number(lines.value) || 0) * (Number(perLine ? perLine.value : block.dataset.tijolosPorLinha) || 0);
   let manual = total.value !== "" && Number(total.value) !== product();
-  const update = () => { if (!manual) total.value = product(); };
-  lines.addEventListener("input", update); perLine.addEventListener("input", update);
+  const update = () => { if (!manual) total.value = lines.value === "" ? "" : product(); };
+  lines.addEventListener("input", update); if (perLine) perLine.addEventListener("input", update);
   total.addEventListener("input", () => { manual = total.value !== "" && Number(total.value) !== product(); });
   update();
 });

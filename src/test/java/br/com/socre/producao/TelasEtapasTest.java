@@ -108,6 +108,34 @@ class TelasEtapasTest {
         assertThat(enfornas.findById(e.getId()).orElseThrow().getSituacao()).isEqualTo(Situacao.VALIDADO);
         assertThat(desenfornas.findById(d.getId()).orElseThrow().getSituacao()).isEqualTo(Situacao.VALIDADO);
         mvc.perform(post("/producao/validar-lote").with(sessaoRegistro).with(csrf()).param("ids", "enforna:" + e.getId())).andExpect(status().isForbidden());
+        // The panel shows the validated stages: 4 lines × 1.610 in, 6.000 + 400 finished out.
+        mvc.perform(get("/painel").param("unidade", unidade.getId().toString()).with(sessaoGestor)).andExpect(status().isOk())
+            .andExpect(content().string(containsString("Forno no período"))).andExpect(content().string(containsString("6,44")))
+            .andExpect(content().string(containsString("6,4"))).andExpect(content().string(containsString("93%")));
+    }
+
+    @Test void inventarioInicialPelaTelaUmaVezSo() throws Exception {
+        var sessaoAdmin = autenticado(admin);
+        var url = "/admin/inventario";
+        mvc.perform(get(url).param("unidade", unidade.getId().toString()).with(sessaoAdmin)).andExpect(status().isOk())
+            .andExpect(content().string(containsString("Salvar inventário inicial")));
+        var ontem = producao.hoje().minusDays(1).atTime(18, 0).toString();
+        var mes = java.time.YearMonth.from(producao.hoje()).toString();
+        mvc.perform(post(url).with(sessaoAdmin).with(csrf()).param("idUnidade", unidade.getId().toString()).param("referencia", ontem)
+                .param("cargas[0].mes", mes).param("cargas[0].numero", "1").param("cargas[0].estado", "ASSADO")
+                .param("cargas[0].itens[" + OITO_FUROS + "].linhas", "12").param("cargas[0].itens[" + OITO_FUROS + "].quantidade", "19320")
+                .param("cargas[0].itens[" + SEIS_FUROS + "].linhas", "").param("cargas[0].itens[" + SEIS_FUROS + "].quantidade", "")
+                .param("cargas[1].mes", "").param("cargas[1].numero", "").param("cargas[1].estado", "AGUARDANDO_QUEIMA")
+                .param("primeira[" + OITO_FUROS + "]", "5000").param("segunda[" + SEIS_FUROS + "]", "300"))
+            .andExpect(status().is3xxRedirection()).andExpect(flash().attribute("sucesso", org.hamcrest.Matchers.startsWith("Inventário inicial registrado: 3 item(ns).")));
+        mvc.perform(get(url).param("unidade", unidade.getId().toString()).with(sessaoAdmin)).andExpect(status().isOk())
+            .andExpect(content().string(containsString("Inventário registrado"))).andExpect(content().string(containsString("Assado (já queimado)")))
+            .andExpect(content().string(containsString("19.320"))).andExpect(content().string(org.hamcrest.Matchers.not(containsString("Salvar inventário inicial"))));
+        // Informed only once (RN20).
+        mvc.perform(post(url).with(sessaoAdmin).with(csrf()).param("idUnidade", unidade.getId().toString()).param("referencia", ontem)
+                .param("primeira[" + OITO_FUROS + "]", "1"))
+            .andExpect(status().isOk()).andExpect(content().string(containsString("já foi informado")));
+        mvc.perform(get(url).with(autenticado(registro))).andExpect(status().isForbidden());
     }
 
     @Test void fornadasMostraBalancoEMarcosPorPerfil() throws Exception {
