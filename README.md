@@ -12,7 +12,7 @@ Aplicação web desenvolvida para um TCC, destinada ao registro, à conferência
 - Indicadores básicos de Maromba por período/unidade, em milheiros, considerando somente lançamentos validados.
 - Aviso de dias sem registro ao selecionar uma unidade. Ausência de registro não vira produção zero.
 - Formulários responsivos e rascunho na mesma aba do navegador em caso de falha de conexão.
-- Sessões no PostgreSQL: Registro de Produção com 30 dias de inatividade; demais perfis com limite absoluto de 7 dias.
+- Sessões no PostgreSQL: Registro de Produção continua conectado enquanto usar o sistema ao menos a cada 3 dias; demais perfis entram de novo 15 dias após o login.
 
 Administração possui apenas consulta dos usuários/unidades de demonstração nesta entrega. Cadastro e redefinição de senha, fornadas, Enforna, Desenforna, correção após validação, relatórios e publicação estão pendentes. O ambiente atual é local e não está pronto para dados reais.
 

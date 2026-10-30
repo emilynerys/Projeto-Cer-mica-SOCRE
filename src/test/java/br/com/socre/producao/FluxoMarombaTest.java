@@ -248,7 +248,7 @@ class FluxoMarombaTest {
         var acesso = autenticado(registro);
         jdbc.update("update usuario set ativo=false where id=?", registro.id());
         mvc.perform(get("/producao").with(acesso)).andExpect(redirectedUrl("/login?expirou"));
-        mvc.perform(get("/painel").with(autenticado(gestor, Instant.now().minus(Duration.ofDays(8)))))
+        mvc.perform(get("/painel").with(autenticado(gestor, Instant.now().minus(Duration.ofDays(16)))))
             .andExpect(redirectedUrl("/login?expirou"));
     }
 }

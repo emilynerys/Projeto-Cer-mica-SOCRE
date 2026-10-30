@@ -43,8 +43,8 @@ note bottom of Computador
   As telas e os dados acessíveis dependem do perfil.
   Gestores Gerais: leitura. Administrador: leitura de tudo
   e escrita só em cadastros, inventário e carga histórica.
-  Registro de Produção: sessão >= 30 dias com renovação;
-  demais perfis: 7 dias, conforme RNF04.
+  Registro de Produção: sessão renovada a cada uso, expira após 3 dias sem uso;
+  demais perfis: 15 dias após o login, conforme RNF04.
 end note
 note bottom of HostBD
   Proposta de topologia, independente de fornecedor.
