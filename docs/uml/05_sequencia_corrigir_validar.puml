@@ -3,17 +3,17 @@ skinparam shadowing false
 skinparam defaultFontName Arial
 skinparam defaultFontSize 13
 autonumber
-title Sequência — corrigir ou validar lançamento
+title Sequência — corrigir, cancelar ou validar lançamento
 
-actor "Supervisor ou\nGestor de Produção" as Usuario
+actor "Registro de Produção\nou Gestor de Produção" as Usuario
 boundary "Tela do lançamento" as Tela
 control "Aplicação / API" as API
 control "Autenticação e autorização" as Acesso
 control "Serviço de produção" as Producao
 database "Banco relacional" as BD
 
-Usuario -> Tela : Salvar edição ou Validar
-Tela -> API : Enviar ID, operação, versão lida e alterações
+Usuario -> Tela : Salvar edição, Cancelar lançamento ou Validar
+Tela -> API : Enviar ID, operação, versão lida, alterações e motivo
 API -> Acesso : Verificar sessão, conta e perfil
 Acesso --> API : Identidade e permissões
 alt Sessão inválida ou perfil sem acesso
@@ -24,10 +24,13 @@ else Perfil elegível
   BD --> Producao : Valores atuais, autor, unidade e situação
   Producao -> Producao : Autorizar operação sobre o registro atual
   note right of Producao
-    Corrigir: Supervisor só próprio Pendente da sua unidade;
+    Corrigir: Registro de Produção só próprio Pendente da sua unidade;
     Gestor de Produção pode corrigir Pendente ou Validado.
+    Cancelar: mesmas permissões de corrigir (RN16).
+    Corrigir e cancelar exigem motivo da lista (RN15, RN16).
     Validar: apenas Gestor de Produção e registro Pendente.
-    Autor e registrado_em não são alterados pela correção.
+    Registro Cancelado não aceita nenhuma operação.
+    Autor e criado_em não são alterados pela correção.
   end note
   alt Registro ausente, operação sem permissão ou versão desatualizada
     Producao -> BD : ROLLBACK
@@ -35,12 +38,12 @@ else Perfil elegível
     API --> Tela : Informar problema; recarregar se houver conflito
   else Operação autorizada e versão atual
     Producao -> Producao : Revalidar campos, etapa, unidade e fornada
-    Producao -> Producao : Recalcular alerta da Enforna se quantidades/linhas mudaram
+    Producao -> Producao : Recalcular avisos (RN14) se quantidades/linhas mudaram
     note right of Producao
-      Proposta: permitir correção histórica mantendo fornada fechada.
+      Proposta: permitir correção histórica mantendo fornada concluída.
       Se trocar fornada/unidade/etapa, conferir vínculo e exigir
-      fornada aberta no novo vínculo, quando aplicável.
-      A regra de correção após fechamento precisa ser confirmada.
+      fornada em andamento no novo vínculo, quando aplicável.
+      A regra de correção após conclusão precisa ser confirmada.
     end note
     alt Campos inválidos ou alerta ainda não confirmado
       Producao -> BD : ROLLBACK
@@ -48,7 +51,10 @@ else Perfil elegível
       API --> Tela : Permitir revisão sem perder os dados
     else Dados válidos e eventual alerta confirmado
       opt Operação = corrigir
-        Producao -> BD : UPDATE cabeçalho permitido e detalhes;\npreservar situação e incrementar versão
+        Producao -> BD : UPDATE do registro da etapa (um formato);\npreservar situação e incrementar versão
+      end
+      opt Operação = cancelar
+        Producao -> BD : UPDATE situação = Cancelado e versão;\nmotivo e momento ficam na auditoria
       end
       opt Operação = validar
         Producao -> BD : UPDATE situação = Validado,\nvalidador, validado_em e versão
@@ -72,7 +78,8 @@ end
 note over Producao, BD
   Proposta adotada: correção de Validado pelo Gestor mantém Validado
   e atualiza os indicadores na próxima consulta/atualização.
-  A decisão consta como ponto em aberto no documento.
-  Não há cancelamento, exclusão nem validação em lote neste modelo.
+  Cancelado é estado final: sai dos indicadores e do movimento do pátio,
+  sem exclusão física. A validação em lote (baixa prioridade) repete
+  a operação validar para cada lançamento, com auditoria própria.
 end note
 @enduml

@@ -5,19 +5,19 @@ skinparam defaultFontSize 13
 autonumber
 title Sequência — gravar lançamento com integridade e auditoria
 
-actor "Supervisor de Produção" as Supervisor
+actor "Registro de Produção" as Registro
 boundary "Formulário de produção" as Tela
 control "Aplicação / API" as API
 control "Autenticação e autorização" as Acesso
 control "Serviço de produção" as Producao
 database "Banco relacional" as BD
 
-Supervisor -> Tela : Confirmar resumo
-Tela -> API : Registrar(data, etapa, fornada, detalhes, aceite_alerta)
+Registro -> Tela : Confirmar resumo
+Tela -> API : Registrar(data, etapa, fornada, valores por formato, aceite_alerta)
 API -> Acesso : Validar sessão, conta ativa e perfil
 Acesso --> API : Identidade, perfil e unidade autorizada
 
-alt Sessão inválida ou perfil diferente de Supervisor
+alt Sessão inválida ou perfil diferente de Registro de Produção
   API --> Tela : Solicitar login ou negar acesso
 else Acesso permitido
   API -> Producao : Registrar dados com identidade autenticada
@@ -26,9 +26,9 @@ else Acesso permitido
   alt Campos inválidos
     Producao --> API : Erros de preenchimento
     API --> Tela : Exibir erros e preservar formulário
-  else Enforna divergente sem aceite dos valores atuais
-    Producao --> API : Alerta por formato: esperado x informado (RF25)
-    API --> Tela : Pedir revisão ou confirmação explícita
+  else Valor fora do esperado sem aceite dos valores atuais
+    Producao --> API : Aviso por formato (RN14): linhas acima da capacidade,\nquantidade acima de linhas x referência, Desenforna acima\ndo enfornado na fornada ou fora da média
+    API --> Tela : Perguntar "Está certo?" (confirmação com um toque)
     note over Tela, API
       Se o usuário confirmar os mesmos valores,
       repetir a solicitação com aceite_alerta.
@@ -36,21 +36,26 @@ else Acesso permitido
     end note
   else Campos válidos e alerta resolvido, quando aplicável
     Producao -> BD : BEGIN
-    Producao -> BD : Conferir unidade ativa e, se aplicável,\nbloquear fornada e verificar unidade + situação Aberta
+    Producao -> BD : Conferir unidade ativa e, se aplicável,\nbloquear fornada e verificar unidade + situação Em andamento;\nse "Nova fornada", criar a próxima do mês (RN06)
     note right of BD
       A verificação e a gravação ocorrem na mesma transação.
-      Fechamento concorrente da fornada deve respeitar o bloqueio.
+      Conclusão concorrente da fornada deve respeitar o bloqueio.
+      Até duas fornadas em andamento por unidade (RN08).
+      Enforna só em fornada sem "Enforna concluída".
+      "Nova fornada" só se nenhuma outra estiver recebendo Enforna.
+      Data anterior ao inventário inicial é recusada (RN20).
     end note
-    alt Unidade/fornada inválida ou fornada fechada
+    alt Unidade/fornada inválida, fornada concluída ou fora do período
       Producao -> BD : ROLLBACK
       Producao --> API : Informar regra violada e atualizar opções
       API --> Tela : Preservar formulário e pedir revisão
     else Contexto válido
-      Producao -> BD : INSERT lançamento Pendente e detalhes em tijolos
+      Producao -> BD : INSERT na tabela da etapa: um registro Pendente\npor formato com quantidade > 0, em tijolos
       note right of BD
-        Autor e registrado_em gerados no servidor.
-        Restrição única de unidade + data + etapa + fornada.
-        A unicidade também vale para Maromba sem fornada.
+        Autor e criado_em gerados no servidor.
+        Restrição única por etapa, entre registros não cancelados:
+        Maromba: unidade + formato + data;
+        Enforna e Desenforna: fornada + formato + data.
         Duplicidade é impedida mesmo com envios concorrentes.
       end note
       alt Violação da chave única
@@ -69,14 +74,14 @@ else Acesso permitido
           BD --> Producao : Confirmação de persistência
           Producao --> API : ID, resumo e situação Pendente
           API --> Tela : Confirmação de gravação
-          Tela --> Supervisor : Registrado com sucesso
+          Tela --> Registro : Registrado com sucesso
         end
       end
     end
   end
 end
 
-note over Supervisor, Tela
+note over Registro, Tela
   Falha de rede pode ocorrer antes ou depois do COMMIT.
   Sem resposta, informar que não foi possível confirmar o envio;
   preservar os campos e orientar consulta aos próprios registros.

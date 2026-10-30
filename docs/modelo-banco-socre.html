@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modelo do banco SOCRE</title>
+<style>
+  @page { size: A4 landscape; margin: 10mm; }
+  body { margin: 0; padding: 24px; background: #ffffff; font-family: Tahoma, Verdana, Arial, sans-serif; color: #111; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 16px; font-size: 13px; color: #444; }
+  #wrap { position: relative; transform-origin: 0 0; }
+  #canvas { position: relative; width: 1430px; }
+  svg { position: absolute; left: 0; top: 0; overflow: visible; }
+  .tab { position: absolute; width: 230px; border: 1px solid #333; background: #fff; box-shadow: 2px 2px 0 #bbb; font-size: 12px; }
+  .tab .h { background: #c6e0b4; border-bottom: 1px solid #333; text-align: center; font-weight: bold; padding: 4px 0; font-size: 13px; }
+  .tab.etapa .h { background: #f4b183; }
+  .tab .f { display: flex; align-items: center; gap: 6px; padding: 2px 6px; border-bottom: 1px solid #ddd; height: 16px; white-space: nowrap; }
+  .tab .f:last-of-type { border-bottom: none; }
+  .tab .foot { height: 6px; background: #c6e0b4; border-top: 1px solid #333; }
+  .tab.etapa .foot { background: #f4b183; }
+  .k { display: inline-block; width: 22px; text-align: center; font-size: 10px; font-weight: bold; border-radius: 3px; padding: 1px 0; }
+  .pk { background: #f2c94c; color: #5a4300; }
+  .fk { background: #d9d9d9; color: #333; }
+  .nk { visibility: hidden; }
+  .t { color: #555; }
+  .card { font: bold 12px Tahoma, Verdana, Arial, sans-serif; fill: #111; }
+  .legend { margin-top: 16px; font-size: 12px; color: #333; line-height: 1.7; }
+</style>
+</head>
+<body>
+<h1>SOCRE: modelo lógico do banco (mapa de produção)</h1>
+<p class="sub">PostgreSQL. Em laranja, as três etapas da produção: <b>maromba</b>, <b>enforna</b> e <b>desenforna</b>.</p>
+<div id="wrap"><div id="canvas"><svg id="lines"></svg></div></div>
+<div class="legend">
+  <span class="k pk">PK</span> chave primária ·
+  <span class="k fk">FK</span> chave estrangeira ·
+  (mín,máx) = quantos registros daquela tabela se ligam a um registro da outra.<br>
+  Cada registro de maromba, enforna ou desenforna é <b>um formato em um dia</b>. Exemplo: a desenforna de 14/08 tem um registro para 8 furos (6 linhas; 8.000 de 1ª, 1.200 de 2ª, 400 de Cru — números de exemplo).<br>
+  <i>id_autor</i> e <i>id_validador</i> apontam para usuario. Em auditoria, <i>tabela</i> + <i>id_registro</i> dizem qual registro foi alterado (maromba, enforna, desenforna ou outro).<br>
+  No inventario_inicial, o produto acabado (estado Acabado 1ª / Acabado 2ª) fica sem fornada, por isso ele também aponta para a unidade.<br>
+  Colunas técnicas fora do desenho: <i>chave_envio</i> e <i>impressao_envio</i> nas três etapas (evitam gravar duas vezes o mesmo envio) e as tabelas de sessão do Spring.
+  Banco criado pela migração <i>V4__etapas_em_tabelas_proprias.sql</i>.
+</div>
+<script>
+const COL = [20, 310, 600, 890, 1180];
+const RA = 20, RB = 360;
+const tabelas = {
+  unidade: [COL[0], RB, '', [
+    ['pk','id','UUID'], ['','nome','VARCHAR(120)'], ['','linhas_forno','INTEGER'], ['','ativa','BOOLEAN']]],
+  usuario: [COL[2], RA, '', [
+    ['pk','id','UUID'], ['fk','id_unidade','UUID'], ['','nome','VARCHAR(120)'], ['','email','VARCHAR(180)'],
+    ['','senha_hash','VARCHAR(100)'], ['','perfil','VARCHAR(30)'], ['','ativo','BOOLEAN'], ['','versao_acesso','INTEGER']]],
+  auditoria: [COL[3], RA, '', [
+    ['pk','id','UUID'], ['fk','id_usuario','UUID'], ['fk','id_motivo','UUID'], ['','tabela','VARCHAR(30)'],
+    ['','id_registro','UUID'], ['','acao','VARCHAR(20)'], ['','data_hora','TIMESTAMP'], ['','antes','TEXT'],
+    ['','depois','TEXT'], ['','texto_motivo','TEXT']]],
+  motivo: [COL[4], RA, '', [
+    ['pk','id','UUID'], ['','tipo','VARCHAR(20)'], ['','descricao','VARCHAR(120)'],
+    ['','exige_texto','BOOLEAN'], ['','ativo','BOOLEAN']]],
+  maromba: [COL[1], RB, 'etapa', [
+    ['pk','id','UUID'], ['fk','id_unidade','UUID'], ['fk','id_formato','UUID'], ['fk','id_autor','UUID'],
+    ['fk','id_validador','UUID'], ['','data','DATE'], ['','quantidade','INTEGER'], ['','situacao','VARCHAR(20)'],
+    ['','origem','VARCHAR(20)'], ['','criado_em','TIMESTAMP'], ['','validado_em','TIMESTAMP'], ['','versao','BIGINT']]],
+  enforna: [COL[2], RB, 'etapa', [
+    ['pk','id','UUID'], ['fk','id_fornada','UUID'], ['fk','id_formato','UUID'], ['fk','id_autor','UUID'],
+    ['fk','id_validador','UUID'], ['','data','DATE'], ['','linhas','INTEGER'], ['','tijolos_por_linha','INTEGER'],
+    ['','quantidade','INTEGER'], ['','situacao','VARCHAR(20)'], ['','origem','VARCHAR(20)'],
+    ['','criado_em','TIMESTAMP'], ['','validado_em','TIMESTAMP'], ['','versao','BIGINT']]],
+  fornada: [COL[3], RB, '', [
+    ['pk','id','UUID'], ['fk','id_unidade','UUID'], ['','numero','INTEGER'], ['','mes','DATE'],
+    ['','situacao','VARCHAR(20)'], ['','enforna_concluida_em','TIMESTAMP'], ['','inicio_esquente','TIMESTAMP'],
+    ['','inicio_queima','TIMESTAMP'], ['','fim_queima','TIMESTAMP'], ['','concluida_em','TIMESTAMP'], ['','versao','BIGINT']]],
+  desenforna: [COL[4], RB, 'etapa', [
+    ['pk','id','UUID'], ['fk','id_fornada','UUID'], ['fk','id_formato','UUID'], ['fk','id_autor','UUID'],
+    ['fk','id_validador','UUID'], ['','data','DATE'], ['','linhas','INTEGER'], ['','primeira','INTEGER'],
+    ['','segunda','INTEGER'], ['','cru','INTEGER'], ['','situacao','VARCHAR(20)'], ['','origem','VARCHAR(20)'],
+    ['','criado_em','TIMESTAMP'], ['','validado_em','TIMESTAMP'], ['','versao','BIGINT']]],
+  inventario_inicial: [COL[3], 0, '', [
+    ['pk','id','UUID'], ['fk','id_unidade','UUID'], ['fk','id_fornada','UUID'], ['fk','id_formato','UUID'], ['','data_hora','TIMESTAMP'],
+    ['','estado','VARCHAR(20)'], ['','linhas','INTEGER'], ['','quantidade','INTEGER']]],
+  formato: [COL[3], 0, '', [
+    ['pk','id','UUID'], ['','nome','VARCHAR(60)'], ['','tijolos_por_linha','INTEGER'], ['','ativo','BOOLEAN']]],
+};
+const canvas = document.getElementById('canvas');
+for (const [nome, [x, y, cls, campos]] of Object.entries(tabelas)) {
+  const d = document.createElement('div');
+  d.className = 'tab ' + cls; d.id = nome; d.style.left = x + 'px'; d.style.top = y + 'px';
+  d.innerHTML = `<div class="h">${nome}</div>` + campos.map(([k, c, t]) =>
+    `<div class="f"><span class="k ${k || 'nk'}">${k ? k.toUpperCase() : 'xx'}</span><span>${c}: <span class="t">${t}</span></span></div>`
+  ).join('') + '<div class="foot"></div>';
+  canvas.appendChild(d);
+}
+const B = id => { const e = document.getElementById(id);
+  return { l: e.offsetLeft, r: e.offsetLeft + e.offsetWidth, t: e.offsetTop, b: e.offsetTop + e.offsetHeight,
+           cx: e.offsetLeft + e.offsetWidth / 2 }; };
+// Inventário fica entre a fornada e a linha do formato; formato fica embaixo de tudo.
+const inventario = document.getElementById('inventario_inicial');
+inventario.style.top = (B('fornada').b + 70) + 'px';
+const un = B('unidade'), us = B('usuario'), au = B('auditoria'), mo = B('motivo'), ma = B('maromba'),
+      en = B('enforna'), fo = B('fornada'), de = B('desenforna'), inv = B('inventario_inicial');
+const busFormato = Math.max(ma.b, en.b, de.b, inv.b) + 40;
+document.getElementById('formato').style.top = (busFormato + 70) + 'px';
+const fm = B('formato');
+const busUsuario = RB - 40;
+const gapX = (en.r + fo.l) / 2;
+const altura = fm.b + 20;
+canvas.style.height = altura + 'px';
+
+const svg = document.getElementById('lines');
+svg.setAttribute('width', 1430); svg.setAttribute('height', altura);
+const NS = 'http://www.w3.org/2000/svg';
+const linha = d => { const p = document.createElementNS(NS, 'path');
+  p.setAttribute('d', d); p.setAttribute('fill', 'none'); p.setAttribute('stroke', '#222'); p.setAttribute('stroke-width', '1.2');
+  svg.appendChild(p); };
+const poly = pts => linha('M' + pts.map(p => p.join(' ')).join(' L'));
+const texto = (x, y, s, anc = 'start') => { const t = document.createElementNS(NS, 'text');
+  t.setAttribute('x', x); t.setAttribute('y', y); t.setAttribute('class', 'card');
+  t.setAttribute('text-anchor', anc); t.textContent = s; svg.appendChild(t); };
+
+// usuario — unidade
+poly([[un.cx, un.t], [un.cx, us.t + 40], [us.l, us.t + 40]]);
+texto(un.cx + 6, un.t - 6, '(0,1)'); texto(us.l - 6, us.t + 35, '(0,n)', 'end');
+// unidade — maromba
+poly([[un.r, un.t + 40], [ma.l, un.t + 40]]);
+texto(un.r + 4, un.t + 35, '(1,1)'); texto(ma.l - 4, un.t + 56, '(0,n)', 'end');
+// usuario — auditoria
+poly([[us.r, us.t + 40], [au.l, us.t + 40]]);
+texto(us.r + 4, us.t + 35, '(1,1)'); texto(au.l - 4, us.t + 56, '(0,n)', 'end');
+// auditoria — motivo
+poly([[au.r, au.t + 40], [mo.l, au.t + 40]]);
+texto(au.r + 4, au.t + 35, '(0,n)'); texto(mo.l - 4, au.t + 56, '(0,1)', 'end');
+// usuario — maromba, enforna, desenforna (autor e validador)
+poly([[us.cx, us.b], [us.cx, en.t]]);
+poly([[ma.cx, ma.t], [ma.cx, busUsuario], [de.cx, busUsuario], [de.cx, de.t]]);
+texto(us.cx + 6, us.b + 15, '(1,1)');
+for (const e of [ma, en, de]) texto(e.cx + 6, e.t - 6, '(0,n)');
+// fornada — enforna e desenforna
+poly([[fo.l, fo.t + 40], [en.r, fo.t + 40]]);
+texto(fo.l - 4, fo.t + 35, '(1,1)', 'end'); texto(en.r + 4, fo.t + 56, '(0,n)');
+poly([[fo.r, fo.t + 40], [de.l, fo.t + 40]]);
+texto(fo.r + 4, fo.t + 35, '(1,1)'); texto(de.l - 4, fo.t + 56, '(0,n)', 'end');
+// fornada — inventario_inicial
+poly([[fo.cx, fo.b], [fo.cx, inv.t]]);
+texto(fo.cx + 6, fo.b + 15, '(0,1)'); texto(fo.cx + 6, inv.t - 6, '(0,n)');
+// formato — maromba, enforna, desenforna, inventario_inicial (com salto onde cruza a linha da unidade)
+const r = 6;
+linha(`M${ma.cx} ${busFormato} H${gapX - r} A${r} ${r} 0 0 1 ${gapX + r} ${busFormato} H${de.cx}`);
+for (const e of [ma, en, de, inv]) poly([[e.cx, e.b], [e.cx, busFormato]]);
+poly([[fm.cx, busFormato], [fm.cx, fm.t]]);
+texto(fm.cx + 6, fm.t - 6, '(1,1)');
+for (const e of [ma, en, de, inv]) texto(e.cx + 6, e.b + 15, '(0,n)');
+// unidade — fornada
+const meio = (fo.b + inv.t) / 2, baixo = busFormato + 35;
+poly([[un.cx, un.b], [un.cx, baixo], [gapX, baixo], [gapX, meio], [fo.cx - 60, meio], [fo.cx - 60, fo.b]]);
+texto(un.cx + 6, un.b + 15, '(1,1)'); texto(fo.cx - 54, fo.b + 15, '(0,n)');
+// unidade — inventario_inicial (ramo da mesma linha, porque o produto acabado não tem fornada)
+poly([[gapX, inv.t + 40], [inv.l, inv.t + 40]]);
+texto(inv.l - 4, inv.t + 56, '(0,n)', 'end');
+
+// Ajusta o desenho à largura da janela.
+const wrap = document.getElementById('wrap');
+const ajustar = () => { const s = Math.min(1, (document.body.clientWidth - 48) / 1430);
+  wrap.style.transform = `scale(${s})`; wrap.style.height = (altura * s) + 'px'; };
+ajustar(); addEventListener('resize', ajustar); addEventListener('beforeprint', () => { wrap.style.transform = 'scale(0.7)'; });
+</script>
+</body>
+</html>

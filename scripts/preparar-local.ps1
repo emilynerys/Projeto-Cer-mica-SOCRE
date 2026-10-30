@@ -72,7 +72,7 @@ Endereço: http://127.0.0.1:8080
 
 | Perfil | E-mail |
 | --- | --- |
-| Supervisor | supervisor@socre.local |
+| Registro de Produção | registro@socre.local |
 | Gestor de Produção | gestor@socre.local |
 | Gestor Geral | geral@socre.local |
 | Administrador | admin@socre.local |

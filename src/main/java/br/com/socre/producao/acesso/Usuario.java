@@ -11,7 +11,7 @@ public class Usuario {
     @Column(nullable = false, length = 180) private String email;
     @Column(name = "senha_hash", nullable = false, length = 100) private String senhaHash;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 30) private Perfil perfil;
-    @ManyToOne(fetch = FetchType.EAGER) @JoinColumn(name = "unidade_id") private Unidade unidade;
+    @ManyToOne(fetch = FetchType.EAGER) @JoinColumn(name = "id_unidade") private Unidade unidade;
     @Column(nullable = false) private boolean ativo;
     @Column(name = "versao_acesso", nullable = false) private int versaoAcesso;
     protected Usuario() {}
@@ -27,5 +27,5 @@ public class Usuario {
     public Unidade getUnidade() { return unidade; }
     public boolean isAtivo() { return ativo; }
     public int getVersaoAcesso() { return versaoAcesso; }
-    public boolean podeEntrar() { return ativo && (perfil != Perfil.SUPERVISOR || (unidade != null && unidade.isAtiva())); }
+    public boolean podeEntrar() { return ativo && (perfil != Perfil.REGISTRO_PRODUCAO || (unidade != null && unidade.isAtiva())); }
 }

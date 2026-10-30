@@ -1,0 +1,8 @@
+<!DOCTYPE html><html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"><body>
+<!-- RN14: warnings ask for confirmation, they never block the record. -->
+<div th:fragment="avisos" class="notice warning" role="alert" th:if="${avisos != null and !avisos.empty}">
+  <strong>Confira antes de salvar</strong>
+  <ul class="avisos"><li th:each="a : ${avisos}" th:text="${a}"></li></ul>
+  <label class="check"><input type="checkbox" name="confirmarAvisos" value="true" required> Conferi, os valores estão certos</label>
+</div>
+</body></html>

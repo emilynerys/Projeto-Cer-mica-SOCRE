@@ -18,7 +18,8 @@ document.querySelectorAll("[data-logout]").forEach(form => form.addEventListener
 
 const form = document.getElementById("production-form");
 if (form) {
-  const fields = ["data", "quantidade6f", "quantidade8f", "chaveEnvio", "versao"];
+  const quantities = [...form.querySelectorAll("[data-formato]")];
+  const fields = ["data", "chaveEnvio", "versao", ...quantities.map(input => input.name)];
   const draftKey = form.dataset.draftKey;
   const error = document.getElementById("form-error");
   const fill = document.getElementById("fill-section");
@@ -45,15 +46,18 @@ if (form) {
   });
   const showReview = () => {
     if (!form.reportValidity()) return;
-    if (Number(field("quantidade6f").value) + Number(field("quantidade8f").value) <= 0) {
+    if (quantities.reduce((total, input) => total + Number(input.value), 0) <= 0) {
       message("Informe a produção de pelo menos um formato. Um dia sem lançamento não é considerado produção zero.");
       return;
     }
     error.hidden = true;
     document.getElementById("review-date").textContent = field("data").value.split("-").reverse().join("/");
     const number = new Intl.NumberFormat("pt-BR");
-    document.getElementById("review-6f").textContent = number.format(Number(field("quantidade6f").value)) + " tijolos";
-    document.getElementById("review-8f").textContent = number.format(Number(field("quantidade8f").value)) + " tijolos";
+    quantities.forEach(input => {
+      const value = Number(input.value);
+      document.getElementById("review-" + input.dataset.formato).textContent =
+        value === 0 ? "sem produção (não gera registro)" : number.format(value) + " tijolos";
+    });
     fill.hidden = true; review.hidden = false;
     document.getElementById("step-fill").classList.remove("active");
     document.getElementById("step-review").classList.add("active");
@@ -95,3 +99,28 @@ if (form) {
     }
   });
 }
+
+// Enforna: the total follows lines × bricks per line until the user types a different total (RN12).
+document.querySelectorAll("[data-enforna-item]").forEach(block => {
+  const lines = block.querySelector("[data-linhas]"), perLine = block.querySelector("[data-por-linha]"), total = block.querySelector("[data-total]");
+  const product = () => (Number(lines.value) || 0) * (Number(perLine.value) || 0);
+  let manual = total.value !== "" && Number(total.value) !== product();
+  const update = () => { if (!manual) total.value = product(); };
+  lines.addEventListener("input", update); perLine.addEventListener("input", update);
+  total.addEventListener("input", () => { manual = total.value !== "" && Number(total.value) !== product(); });
+  update();
+});
+
+// Desenforna: shows 1ª + 2ª + Cru of each format.
+document.querySelectorAll("[data-desenforna-item]").forEach(block => {
+  const parts = [...block.querySelectorAll("[data-soma]")], out = block.querySelector("[data-soma-total]");
+  const number = new Intl.NumberFormat("pt-BR");
+  const update = () => { out.textContent = number.format(parts.reduce((sum, input) => sum + (Number(input.value) || 0), 0)); };
+  parts.forEach(input => input.addEventListener("input", update)); update();
+});
+
+// Batch validation: "mark all" toggles the pending records of the page.
+const markAll = document.getElementById("marcar-todos");
+if (markAll) markAll.addEventListener("change", () => document.querySelectorAll("[data-lote]").forEach(box => { box.checked = markAll.checked; }));
+
+document.querySelectorAll("[data-auto-submit]").forEach(select => select.addEventListener("change", () => select.form.submit()));
