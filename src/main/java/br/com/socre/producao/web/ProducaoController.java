@@ -1,7 +1,6 @@
 package br.com.socre.producao.web;
 
 import br.com.socre.producao.acesso.*;
-import br.com.socre.producao.auditoria.AuditoriaRepository;
 import br.com.socre.producao.cadastro.UnidadeRepository;
 import br.com.socre.producao.producao.*;
 import jakarta.servlet.http.*;
@@ -23,10 +22,9 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller @RequestMapping("/producao")
 public class ProducaoController {
-    private final ProducaoService service; private final LancamentoRepository lancamentos;
-    private final UnidadeRepository unidades; private final AuditoriaRepository auditoria;
-    public ProducaoController(ProducaoService service, LancamentoRepository lancamentos, UnidadeRepository unidades, AuditoriaRepository auditoria) {
-        this.service = service; this.lancamentos = lancamentos; this.unidades = unidades; this.auditoria = auditoria;
+    private final ProducaoService service; private final MarombaRepository marombas; private final UnidadeRepository unidades;
+    public ProducaoController(ProducaoService service, MarombaRepository marombas, UnidadeRepository unidades) {
+        this.service = service; this.marombas = marombas; this.unidades = unidades;
     }
     @GetMapping String lista(@AuthenticationPrincipal UsuarioAutenticado p, Model model,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
@@ -36,28 +34,29 @@ public class ProducaoController {
         if (fim == null) fim = service.hoje();
         validarPeriodo(inicio, fim);
         boolean registroProducao = p.perfil() == Perfil.REGISTRO_PRODUCAO;
-        var resultado = lancamentos.consultar(inicio, fim, registroProducao ? p.id() : null, registroProducao ? p.unidadeId() : null,
-            situacao, PageRequest.of(Math.max(0, pagina), 30, Sort.by(Sort.Order.asc("situacao"), Sort.Order.desc("dataProducao"), Sort.Order.desc("criadoEm"))));
+        var resultado = marombas.consultar(inicio, fim, registroProducao ? p.id() : null, registroProducao ? p.unidadeId() : null, situacao,
+            PageRequest.of(Math.max(0, pagina), 30, Sort.by(Sort.Order.asc("situacao"), Sort.Order.desc("data"), Sort.Order.desc("criadoEm"), Sort.Order.asc("formato.nome"))));
         model.addAttribute("registros", resultado); model.addAttribute("inicio", inicio); model.addAttribute("fim", fim);
         model.addAttribute("situacao", situacao); model.addAttribute("registroProducao", registroProducao);
         return "producao/lista";
     }
     @GetMapping("/maromba") String nova(@AuthenticationPrincipal UsuarioAutenticado p, Model model) {
         var f = new MarombaForm(); f.setData(service.hoje()); f.setChaveEnvio(UUID.randomUUID());
+        service.formatosAtivos().forEach(formato -> f.getQuantidades().put(formato.getId(), 0));
         model.addAttribute("form", f); prepararForm(model, p, null); return "producao/form";
     }
     @GetMapping("/{id}") String detalhe(@PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado p, Model model) {
-        var l = service.consultar(id, p); model.addAttribute("registro", l);
-        model.addAttribute("historico", auditoria.findByLancamentoIdOrderByOcorridoEmAsc(id));
-        model.addAttribute("podeEditar", l.getSituacao() == Situacao.PENDENTE && (p.perfil() == Perfil.REGISTRO_PRODUCAO || p.perfil() == Perfil.GESTOR_PRODUCAO));
-        model.addAttribute("podeValidar", l.getSituacao() == Situacao.PENDENTE && p.perfil() == Perfil.GESTOR_PRODUCAO);
+        var m = service.consultar(id, p); model.addAttribute("registro", m);
+        model.addAttribute("historico", service.historico(id));
+        model.addAttribute("podeEditar", m.getSituacao() == Situacao.PENDENTE && (p.perfil() == Perfil.REGISTRO_PRODUCAO || p.perfil() == Perfil.GESTOR_PRODUCAO));
+        model.addAttribute("podeValidar", m.getSituacao() == Situacao.PENDENTE && p.perfil() == Perfil.GESTOR_PRODUCAO);
         return "producao/detalhe";
     }
     @GetMapping("/{id}/editar") String editar(@PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado p, Model model) {
-        var l = service.consultar(id, p); service.exigirEdicao(l, p);
-        var f = new MarombaForm(); f.setData(l.getDataProducao()); f.setQuantidade6f(l.getQuantidade6f()); f.setQuantidade8f(l.getQuantidade8f());
-        f.setVersao(l.getVersao()); f.setChaveEnvio(l.getChaveEnvio());
-        model.addAttribute("form", f); prepararForm(model, p, l); return "producao/form";
+        var m = service.consultar(id, p); service.exigirEdicao(m, p);
+        var f = new MarombaForm(); f.setData(m.getData()); f.getQuantidades().put(m.getFormato().getId(), m.getQuantidade());
+        f.setVersao(m.getVersao()); f.setChaveEnvio(m.getChaveEnvio());
+        model.addAttribute("form", f); prepararForm(model, p, m); return "producao/form";
     }
     @PostMapping("/maromba") Object criar(@Valid @ModelAttribute("form") MarombaForm form, BindingResult errors,
             @AuthenticationPrincipal UsuarioAutenticado p, Model model, HttpServletRequest req) {
@@ -73,12 +72,15 @@ public class ProducaoController {
         String mensagem = errors.hasErrors() ? "Confira os campos: use uma data válida e quantidades inteiras, sem deixar campos vazios." : null;
         if (mensagem == null) {
             try {
-                var l = id == null ? service.criar(p, form) : service.editar(id, p, form);
-                String url = "/producao/" + l.getId() + "?salvo";
+                String url;
+                if (id == null) {
+                    var criados = service.criar(p, form);
+                    url = criados.size() == 1 ? "/producao/" + criados.getFirst().getId() + "?salvo" : "/producao?salvo=" + criados.size();
+                } else url = "/producao/" + service.editar(id, p, form).getId() + "?salvo";
                 if (json(req)) return ResponseEntity.ok(Map.of("redirect", url));
                 return new ModelAndView("redirect:" + url);
             } catch (RegraNegocioException e) { mensagem = e.getMessage(); }
-            catch (DataIntegrityViolationException e) { mensagem = "Já existe um lançamento para esta data e unidade. Consulte os registros antes de tentar novamente."; }
+            catch (DataIntegrityViolationException e) { mensagem = "Já existe Maromba deste formato para esta data e unidade. Consulte os registros antes de tentar novamente."; }
             catch (OptimisticLockingFailureException e) { mensagem = "O registro foi alterado por outra pessoa. Recarregue a página e confira os valores."; }
         }
         if (json(req)) return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", mensagem));
@@ -87,13 +89,14 @@ public class ProducaoController {
     }
     @PostMapping("/{id}/validar") String validar(@PathVariable UUID id, @RequestParam long versao,
             @AuthenticationPrincipal UsuarioAutenticado p, RedirectAttributes flash) {
-        try { service.validar(id, p, versao); flash.addFlashAttribute("sucesso", "Lançamento validado. Os indicadores já consideram estes valores."); }
+        try { service.validar(id, p, versao); flash.addFlashAttribute("sucesso", "Registro validado. Os indicadores já consideram estes valores."); }
         catch (RegraNegocioException | OptimisticLockingFailureException e) { flash.addFlashAttribute("falha", "Não foi possível validar esta revisão. Confira o estado atual do registro."); }
         return "redirect:/producao/" + id;
     }
-    private void prepararForm(Model model, UsuarioAutenticado p, Lancamento original) {
+    private void prepararForm(Model model, UsuarioAutenticado p, Maromba original) {
         model.addAttribute("registro", original);
         model.addAttribute("unidade", original == null ? unidades.findById(p.unidadeId()).orElseThrow() : original.getUnidade());
+        model.addAttribute("formatos", original == null ? service.formatosAtivos() : List.of(original.getFormato()));
         model.addAttribute("hoje", service.hoje());
     }
     static void validarPeriodo(LocalDate inicio, LocalDate fim) {

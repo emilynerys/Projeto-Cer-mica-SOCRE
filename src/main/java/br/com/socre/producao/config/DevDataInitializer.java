@@ -21,7 +21,7 @@ public class DevDataInitializer implements CommandLineRunner {
     @Override @Transactional public void run(String... args) {
         if (usuarios.count() != 0) return;
         if (senha.length() < 12) throw new IllegalStateException("Configure SOCRE_DEMO_PASSWORD com ao menos 12 caracteres no perfil dev.");
-        var unidade = unidades.save(new Unidade(UUID.randomUUID(), "Carolina · demonstração"));
+        var unidade = unidades.save(new Unidade(UUID.randomUUID(), "Carolina · demonstração", 46));
         criar("registro", "Registro de demonstração", Perfil.REGISTRO_PRODUCAO, unidade);
         criar("gestor", "Gestor de demonstração", Perfil.GESTOR_PRODUCAO, null);
         criar("geral", "Gestão geral de demonstração", Perfil.GESTOR_GERAL, null);

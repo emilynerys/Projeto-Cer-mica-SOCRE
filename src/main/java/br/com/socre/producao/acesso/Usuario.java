@@ -11,7 +11,7 @@ public class Usuario {
     @Column(nullable = false, length = 180) private String email;
     @Column(name = "senha_hash", nullable = false, length = 100) private String senhaHash;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 30) private Perfil perfil;
-    @ManyToOne(fetch = FetchType.EAGER) @JoinColumn(name = "unidade_id") private Unidade unidade;
+    @ManyToOne(fetch = FetchType.EAGER) @JoinColumn(name = "id_unidade") private Unidade unidade;
     @Column(nullable = false) private boolean ativo;
     @Column(name = "versao_acesso", nullable = false) private int versaoAcesso;
     protected Usuario() {}

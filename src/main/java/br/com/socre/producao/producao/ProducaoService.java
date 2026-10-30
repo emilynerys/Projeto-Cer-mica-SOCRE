@@ -2,6 +2,7 @@ package br.com.socre.producao.producao;
 
 import br.com.socre.producao.acesso.*;
 import br.com.socre.producao.auditoria.*;
+import br.com.socre.producao.cadastro.*;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.time.*;
@@ -16,65 +17,79 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class ProducaoService {
     public static final ZoneId FUSO = ZoneId.of("America/Fortaleza");
-    private final LancamentoRepository lancamentos; private final UsuarioRepository usuarios;
+    private static final String TABELA = "maromba";
+    private final MarombaRepository marombas; private final FormatoRepository formatos; private final UsuarioRepository usuarios;
     private final AuditoriaRepository auditoria; private final JdbcTemplate jdbc; private final Clock clock;
-    public ProducaoService(LancamentoRepository lancamentos, UsuarioRepository usuarios, AuditoriaRepository auditoria, JdbcTemplate jdbc, Clock clock) {
-        this.lancamentos = lancamentos; this.usuarios = usuarios; this.auditoria = auditoria; this.jdbc = jdbc; this.clock = clock;
+    public ProducaoService(MarombaRepository marombas, FormatoRepository formatos, UsuarioRepository usuarios, AuditoriaRepository auditoria, JdbcTemplate jdbc, Clock clock) {
+        this.marombas = marombas; this.formatos = formatos; this.usuarios = usuarios; this.auditoria = auditoria; this.jdbc = jdbc; this.clock = clock;
     }
     public LocalDate hoje() { return LocalDate.now(clock.withZone(FUSO)); }
+    public List<Formato> formatosAtivos() { return formatos.findByAtivoTrueOrderByNome(); }
+    // Each active format with a quantity above zero becomes one record; all of them share the submission key.
     @Transactional
-    public Lancamento criar(UsuarioAutenticado p, MarombaForm f) {
+    public List<Maromba> criar(UsuarioAutenticado p, MarombaForm f) {
         var autor = usuarioAtivo(p);
         if (autor.getPerfil() != Perfil.REGISTRO_PRODUCAO) negar();
-        validarValores(f);
+        var ativos = formatosAtivos();
+        validarCriacao(f, ativos);
         // PostgreSQL transaction lock serializes retries of the exact same request key.
         jdbc.query("select pg_advisory_xact_lock(hashtextextended(?, 0))", rs -> {}, f.getChaveEnvio().toString());
         String impressao = impressao(autor, f);
-        var anterior = lancamentos.findByChaveEnvio(f.getChaveEnvio());
-        if (anterior.isPresent()) {
-            var salvo = anterior.get();
-            if (!salvo.getAutor().getId().equals(autor.getId()) || !salvo.getImpressaoEnvio().equals(impressao))
+        var anteriores = marombas.findByChaveEnvioOrderByFormatoNome(f.getChaveEnvio());
+        if (!anteriores.isEmpty()) {
+            if (anteriores.stream().anyMatch(m -> !m.getAutor().getId().equals(autor.getId()) || !m.getImpressaoEnvio().equals(impressao)))
                 throw new RegraNegocioException("Este envio já foi usado com outros dados. Consulte seus registros e abra um novo formulário.");
-            return salvo;
+            return anteriores;
         }
-        if (lancamentos.existsByUnidadeIdAndDataProducao(autor.getUnidade().getId(), f.getData()))
-            throw new RegraNegocioException("Já existe uma Maromba para esta data e unidade. Consulte o registro para conferir ou corrigir.");
-        var l = lancamentos.saveAndFlush(new Lancamento(autor.getUnidade(), autor, f.getData(), f.getQuantidade6f(), f.getQuantidade8f(), f.getChaveEnvio(), impressao, clock.instant()));
-        auditar(l, autor, "CRIACAO", null);
-        return l;
+        var criados = new ArrayList<Maromba>();
+        for (var formato : ativos) {
+            int quantidade = f.getQuantidades().get(formato.getId());
+            if (quantidade == 0) continue;
+            if (marombas.existeAtivo(autor.getUnidade().getId(), formato.getId(), f.getData()))
+                throw new RegraNegocioException("Já existe Maromba de " + formato.getNome() + " para esta data e unidade. Consulte o registro para conferir ou corrigir.");
+            criados.add(marombas.saveAndFlush(new Maromba(autor.getUnidade(), formato, autor, f.getData(), quantidade, f.getChaveEnvio(), impressao, clock.instant())));
+        }
+        for (var m : criados) auditar(m, autor, "CRIACAO", null);
+        return criados;
     }
     @Transactional(readOnly = true)
-    public Lancamento consultar(UUID id, UsuarioAutenticado p) {
+    public Maromba consultar(UUID id, UsuarioAutenticado p) {
         var usuario = usuarioAtivo(p);
-        var l = lancamentos.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        var m = marombas.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         if (usuario.getPerfil() == Perfil.ADMINISTRADOR) negar();
-        if (usuario.getPerfil() == Perfil.REGISTRO_PRODUCAO && (!l.getAutor().getId().equals(usuario.getId())
-                || !l.getUnidade().getId().equals(usuario.getUnidade().getId()))) negar();
-        return l;
+        if (usuario.getPerfil() == Perfil.REGISTRO_PRODUCAO && (!m.getAutor().getId().equals(usuario.getId())
+                || !m.getUnidade().getId().equals(usuario.getUnidade().getId()))) negar();
+        return m;
     }
+    // A correction changes one record, that is, one format.
     @Transactional
-    public Lancamento editar(UUID id, UsuarioAutenticado p, MarombaForm f) {
-        var l = consultar(id, p);
-        exigirEdicao(l, p);
-        conferirVersao(l, f.getVersao()); validarValores(f);
-        String antes = l.retrato();
-        l.editar(f.getData(), f.getQuantidade6f(), f.getQuantidade8f());
-        if (!antes.equals(l.retrato())) {
-            lancamentos.flush(); auditar(l, usuarioAtivo(p), "EDICAO", antes);
+    public Maromba editar(UUID id, UsuarioAutenticado p, MarombaForm f) {
+        var m = consultar(id, p);
+        exigirEdicao(m, p);
+        conferirVersao(m, f.getVersao());
+        validarData(f);
+        Integer quantidade = f.getQuantidades().get(m.getFormato().getId());
+        if (quantidade == null || quantidade <= 0 || quantidade > 1000000000)
+            throw new RegraNegocioException("Informe uma quantidade inteira maior que zero para " + m.getFormato().getNome() + ".");
+        String antes = m.retrato();
+        m.editar(f.getData(), quantidade);
+        if (!antes.equals(m.retrato())) {
+            marombas.flush(); auditar(m, usuarioAtivo(p), "CORRECAO", antes);
         }
-        return l;
+        return m;
     }
     @Transactional
-    public Lancamento validar(UUID id, UsuarioAutenticado p, long versao) {
+    public Maromba validar(UUID id, UsuarioAutenticado p, long versao) {
         var gestor = usuarioAtivo(p);
         if (gestor.getPerfil() != Perfil.GESTOR_PRODUCAO) negar();
-        var l = consultar(id, p); conferirVersao(l, versao);
-        if (l.getSituacao() != Situacao.PENDENTE) throw new RegraNegocioException("Este lançamento já foi validado.");
-        String antes = l.retrato(); l.validar(gestor, clock.instant());
-        lancamentos.flush(); auditar(l, gestor, "VALIDACAO", antes); return l;
+        var m = consultar(id, p); conferirVersao(m, versao);
+        if (m.getSituacao() != Situacao.PENDENTE) throw new RegraNegocioException("Este registro já foi validado.");
+        String antes = m.retrato(); m.validar(gestor, clock.instant());
+        marombas.flush(); auditar(m, gestor, "VALIDACAO", antes); return m;
     }
-    public void exigirEdicao(Lancamento l, UsuarioAutenticado p) {
-        if ((p.perfil() != Perfil.REGISTRO_PRODUCAO && p.perfil() != Perfil.GESTOR_PRODUCAO) || l.getSituacao() != Situacao.PENDENTE) negar();
+    public List<EventoAuditoria> historico(UUID id) { return auditoria.findByTabelaAndIdRegistroOrderByDataHoraAsc(TABELA, id); }
+    public void exigirEdicao(Maromba m, UsuarioAutenticado p) {
+        if ((p.perfil() != Perfil.REGISTRO_PRODUCAO && p.perfil() != Perfil.GESTOR_PRODUCAO) || m.getSituacao() != Situacao.PENDENTE) negar();
     }
     private Usuario usuarioAtivo(UsuarioAutenticado p) {
         if (p == null) throw new AccessDeniedException("Entre novamente.");
@@ -82,24 +97,29 @@ public class ProducaoService {
         if (!u.podeEntrar() || u.getPerfil() != p.perfil() || u.getVersaoAcesso() != p.versaoAcesso()) negar();
         return u;
     }
-    private void validarValores(MarombaForm f) {
+    private void validarData(MarombaForm f) {
         if (f.getChaveEnvio() == null || f.getData() == null || f.getData().isAfter(hoje()))
             throw new RegraNegocioException("Confira a data: não é possível registrar uma produção futura.");
-        if (f.getQuantidade6f() == null || f.getQuantidade8f() == null || f.getQuantidade6f() < 0 || f.getQuantidade8f() < 0
-                || f.getQuantidade6f() > 1000000000 || f.getQuantidade8f() > 1000000000)
-            throw new RegraNegocioException("Preencha as duas quantidades com números inteiros maiores ou iguais a zero.");
-        if (f.getQuantidade6f() == 0 && f.getQuantidade8f() == 0)
+    }
+    private void validarCriacao(MarombaForm f, List<Formato> ativos) {
+        validarData(f);
+        var ids = ativos.stream().map(Formato::getId).toList();
+        if (!f.getQuantidades().keySet().equals(new HashSet<>(ids)) || f.getQuantidades().values().stream()
+                .anyMatch(q -> q == null || q < 0 || q > 1000000000))
+            throw new RegraNegocioException("Preencha todos os formatos com números inteiros maiores ou iguais a zero.");
+        if (f.getQuantidades().values().stream().allMatch(q -> q == 0))
             throw new RegraNegocioException("Informe ao menos uma quantidade maior que zero.");
     }
-    private void conferirVersao(Lancamento l, long versao) {
-        if (l.getVersao() != versao) throw new RegraNegocioException("Este registro mudou desde que você abriu a tela. Recarregue e confira novamente.");
+    private void conferirVersao(Maromba m, long versao) {
+        if (m.getVersao() != versao) throw new RegraNegocioException("Este registro mudou desde que você abriu a tela. Recarregue e confira novamente.");
     }
-    private void auditar(Lancamento l, Usuario u, String acao, String antes) {
-        auditoria.save(new EventoAuditoria(l.getId(), u, acao, antes, l.retrato(), clock.instant()));
+    private void auditar(Maromba m, Usuario u, String acao, String antes) {
+        auditoria.save(new EventoAuditoria(TABELA, m.getId(), u, acao, antes, m.retrato(), clock.instant()));
     }
     private String impressao(Usuario u, MarombaForm f) {
-        String texto = u.getId() + "|" + u.getUnidade().getId() + "|" + f.getData() + "|" + f.getQuantidade6f() + "|" + f.getQuantidade8f();
-        try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(texto.getBytes(StandardCharsets.UTF_8))); }
+        var texto = new StringBuilder(u.getId() + "|" + u.getUnidade().getId() + "|" + f.getData());
+        new TreeMap<>(f.getQuantidades()).forEach((formato, q) -> texto.append('|').append(formato).append('=').append(q));
+        try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(texto.toString().getBytes(StandardCharsets.UTF_8))); }
         catch (NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
     }
     private void negar() { throw new AccessDeniedException("Seu perfil não permite esta operação."); }
