@@ -5,7 +5,7 @@ skinparam defaultFontSize 13
 autonumber
 title Sequência — indicadores oficiais e dias sem registro
 
-actor "Gestor de Produção\nou Gestor Geral" as Gestor
+actor "Gestor de Produção, Gestor Geral\nou Administrador" as Gestor
 boundary "Dashboard" as Tela
 control "Aplicação / API" as API
 control "Autenticação e autorização" as Acesso
@@ -23,6 +23,7 @@ else Gestor autorizado
   BI -> BD : Buscar lançamentos Validados e detalhes,\ncom filtros de unidade, período, etapa e formato
   BD --> BI : Quantidades em tijolos e linhas por formato
   BI -> BI : Agregar por etapa, formato e classificação,\ncom agrupamento diário/semanal/mensal/acumulado
+  BI -> BI : Calcular o movimento do pátio no período:\nMaromba − Enforna por formato (RN19), sem saldo
   note right of BI
     Não somar Maromba + Enforna + Desenforna (RN07).
     Produção acabada = Desenforna de 1ª + 2ª qualidade.

@@ -6,6 +6,8 @@
 /docs/PLANEJAMENTO_MVP.md
 /docs/BACKLOG_MVP.md
 /docs/ANDAMENTO.md
+/docs/VISITA_*.md
+/docs/REGRAS_NEGOCIO_REVISADAS.md
 
 # Credenciais: somente o exemplo sem senhas deve ser versionado
 .env

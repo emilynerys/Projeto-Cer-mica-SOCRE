@@ -5,59 +5,75 @@ skinparam defaultFontSize 13
 title Atividade — registro guiado de produção
 
 start
-:Verificar sessão e perfil de Supervisor;
+:Verificar sessão e perfil Registro de Produção;
 if (Acesso permitido?) then (sim)
 else (não)
   :Solicitar login ou informar falta de permissão;
   stop
 endif
-:Preencher data atual e unidade do Supervisor;
-:Permitir ajuste da data e seleção da etapa;
+:Preencher data atual e unidade do usuário;
+:Permitir ajuste da data (dia da produção, nunca futura)
+e seleção da etapa;
 
 if (Etapa = Maromba?) then (sim)
   :Ocultar fornada, linhas e classificação;
-  :Mostrar quantidade de 6 Furos e 8 Furos;
+  :Mostrar quantidade por formato ativo;
 else (não)
-  :Listar fornadas abertas da unidade;
-  if (Existe fornada aberta?) then (sim)
-    :Selecionar uma fornada para todo o lançamento;
-  else (não)
-    :Informar necessidade de abertura pelo Gestor;
-    stop
-  endif
+  :Listar fornadas em andamento da unidade
+  (até duas: uma saindo, outra entrando);
   if (Etapa = Enforna?) then (sim)
-    :Mostrar quantidade e linhas por formato;
+    :Selecionar a fornada que está recebendo Enforna
+    ou escolher "Nova fornada";
+    note right
+      "Nova fornada" gera o número sequencial
+      do mês (RN06) e só aparece quando nenhuma
+      fornada está recebendo Enforna, isto é,
+      quando a anterior já foi marcada como
+      "Enforna concluída" (RN08).
+    end note
+    :Por formato: linhas enfornadas e
+    tijolos por linha (preenchido com a referência);
+    :Calcular total = linhas x tijolos por linha,
+    com total e tijolos por linha editáveis (RN12);
   else (Desenforna)
-    :Mostrar 1ª qualidade, 2ª qualidade,
-    Cru e linhas por formato;
+    if (Existe fornada em andamento?) then (sim)
+      :Selecionar a fornada que está saindo;
+    else (não)
+      :Informar que não há fornada para desenfornar;
+      stop
+    endif
+    :Por formato: linhas desenfornadas,
+    1ª qualidade, 2ª qualidade e Cru que saiu;
+    note right
+      O Cru que fica no forno
+      não é registrado (RN10).
+    end note
   endif
 endif
 
-:Inicializar campos numéricos com zero;
 repeat
   :Preencher ou revisar os campos aplicáveis;
-  :Reavaliar o formulário, limpando a indicação
-  de revisão da tentativa anterior;
   :Verificar obrigatoriedade, inteiros >= 0
   e alguma quantidade de tijolos > 0;
   if (Campos válidos?) then (sim)
-    if (Enforna com divergência > 2%?) then (sim)
-      :Exibir esperado e informado por formato;
-      :Oferecer Corrigir ou Está certo, continuar;
+    if (Algum valor fora do esperado?) then (sim)
+      :Exibir aviso "Está certo?" com o motivo;
       note right
-        esperado = linhas x capacidade por linha
-        6 Furos: 2.200; 8 Furos: 1.610 tijolos.
-        Aviso não bloqueante; não se aplica à Desenforna.
-        Caso esperado = 0 e quantidade > 0: avisar
-        (tratamento proposto para divisão por zero).
+        RN14 — aviso, nunca bloqueio:
+        linhas acima da capacidade do forno;
+        quantidade acima de linhas x referência;
+        Desenforna acima do enfornado na fornada;
+        produção muito diferente da média recente.
+        Confirmação com um toque; o Gestor de
+        Produção vê o aviso na validação.
       end note
       if (Continuar com os valores?) then (sim)
-        :Exibir resumo completo, incluindo zeros;
+        :Exibir resumo completo;
       else (corrigir)
         :Marcar revisão necessária;
       endif
     else (não)
-      :Exibir resumo completo, incluindo zeros;
+      :Exibir resumo completo;
     endif
   else (não)
     :Indicar campos a corrigir;
@@ -74,13 +90,13 @@ endif
 
 :Revalidar sessão, perfil, unidade, campos,
 fornada e unicidade no servidor;
-if (Existe registro com a mesma chave?) then (sim)
+if (Existe registro não cancelado com a mesma chave?) then (sim)
   :Recusar duplicidade e oferecer Meus Registros;
   stop
 endif
 if (Demais regras atendidas?) then (sim)
   :Gravar lançamento Pendente, detalhes e auditoria
-  em uma única transação;
+  em uma única transação (e a nova fornada, se escolhida);
 else (não)
   :Informar erro e manter dados para correção;
   stop

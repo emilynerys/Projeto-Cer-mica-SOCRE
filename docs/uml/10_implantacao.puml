@@ -5,8 +5,8 @@ skinparam defaultFontName Arial
 skinparam defaultFontSize 13
 title Implantação — acesso web e persistência em nuvem
 
-node "Celular do Supervisor" as Celular <<device>> {
-  node "Navegador móvel" as BrowserSupervisor <<executionEnvironment>> {
+node "Dispositivo do Registro de Produção" as Celular <<device>> {
+  node "Navegador móvel" as BrowserRegistro <<executionEnvironment>> {
     artifact "Interface de coleta\ne Meus Registros" as Coleta
   }
 }
@@ -41,8 +41,9 @@ note bottom of Celular
 end note
 note bottom of Computador
   As telas e os dados acessíveis dependem do perfil.
-  Gestores Gerais: leitura. Administrador: cadastros.
-  Supervisor: sessão >= 30 dias com renovação;
+  Gestores Gerais: leitura. Administrador: leitura de tudo
+  e escrita só em cadastros, inventário e carga histórica.
+  Registro de Produção: sessão >= 30 dias com renovação;
   demais perfis: 7 dias, conforme RNF04.
 end note
 note bottom of HostBD
