@@ -1,7 +1,7 @@
 package br.com.socre.producao.web;
 
 import br.com.socre.producao.acesso.*;
-import br.com.socre.producao.cadastro.UnidadeRepository;
+import br.com.socre.producao.cadastro.*;
 import br.com.socre.producao.producao.*;
 import jakarta.servlet.http.*;
 import jakarta.validation.Valid;
@@ -48,12 +48,13 @@ public class ProducaoController {
     @GetMapping("/{id}") String detalhe(@PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado p, Model model) {
         var m = service.consultar(id, p); model.addAttribute("registro", m);
         model.addAttribute("historico", service.historico(id));
-        model.addAttribute("podeEditar", m.getSituacao() == Situacao.PENDENTE && (p.perfil() == Perfil.REGISTRO_PRODUCAO || p.perfil() == Perfil.GESTOR_PRODUCAO));
+        model.addAttribute("podeEditar", service.podeAlterar(m, p));
+        model.addAttribute("motivosCancelamento", service.motivos(Motivo.Tipo.CANCELAMENTO));
         model.addAttribute("podeValidar", m.getSituacao() == Situacao.PENDENTE && p.perfil() == Perfil.GESTOR_PRODUCAO);
         return "producao/detalhe";
     }
     @GetMapping("/{id}/editar") String editar(@PathVariable UUID id, @AuthenticationPrincipal UsuarioAutenticado p, Model model) {
-        var m = service.consultar(id, p); service.exigirEdicao(m, p);
+        var m = service.consultar(id, p); exigirAlteracao(m, p);
         var f = new MarombaForm(); f.setData(m.getData()); f.getQuantidades().put(m.getFormato().getId(), m.getQuantidade());
         f.setVersao(m.getVersao()); f.setChaveEnvio(m.getChaveEnvio());
         model.addAttribute("form", f); prepararForm(model, p, m); return "producao/form";
@@ -68,7 +69,7 @@ public class ProducaoController {
     }
     private Object salvar(UUID id, MarombaForm form, BindingResult errors, UsuarioAutenticado p, Model model, HttpServletRequest req) {
         var original = id == null ? null : service.consultar(id, p);
-        if (original != null) service.exigirEdicao(original, p);
+        if (original != null) exigirAlteracao(original, p);
         String mensagem = errors.hasErrors() ? "Confira os campos: use uma data válida e quantidades inteiras, sem deixar campos vazios." : null;
         if (mensagem == null) {
             try {
@@ -93,8 +94,20 @@ public class ProducaoController {
         catch (RegraNegocioException | OptimisticLockingFailureException e) { flash.addFlashAttribute("falha", "Não foi possível validar esta revisão. Confira o estado atual do registro."); }
         return "redirect:/producao/" + id;
     }
+    // RN16: cancels a record that should not exist, with a reason from the list.
+    @PostMapping("/{id}/cancelar") String cancelar(@PathVariable UUID id, @RequestParam long versao, @RequestParam(required = false) UUID idMotivo,
+            @RequestParam(required = false) String textoMotivo, @AuthenticationPrincipal UsuarioAutenticado p, RedirectAttributes flash) {
+        try { service.cancelar(id, p, versao, idMotivo, textoMotivo); flash.addFlashAttribute("sucesso", "Registro cancelado. Ele continua disponível para consulta, mas sai dos indicadores."); }
+        catch (RegraNegocioException e) { flash.addFlashAttribute("falha", e.getMessage()); }
+        catch (OptimisticLockingFailureException e) { flash.addFlashAttribute("falha", "Não foi possível cancelar esta revisão. Confira o estado atual do registro."); }
+        return "redirect:/producao/" + id;
+    }
+    private void exigirAlteracao(Maromba m, UsuarioAutenticado p) {
+        if (!service.podeAlterar(m, p)) throw new org.springframework.security.access.AccessDeniedException("Seu perfil não permite esta operação.");
+    }
     private void prepararForm(Model model, UsuarioAutenticado p, Maromba original) {
         model.addAttribute("registro", original);
+        model.addAttribute("motivosCorrecao", service.motivos(Motivo.Tipo.CORRECAO));
         model.addAttribute("unidade", original == null ? unidades.findById(p.unidadeId()).orElseThrow() : original.getUnidade());
         model.addAttribute("formatos", original == null ? service.formatosAtivos() : List.of(original.getFormato()));
         model.addAttribute("hoje", service.hoje());

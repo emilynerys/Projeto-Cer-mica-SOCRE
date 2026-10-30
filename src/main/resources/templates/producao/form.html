@@ -12,6 +12,10 @@
       <p class="field-help">A unidade já está preenchida. Registre os valores em tijolos.</p>
       <div class="quantity-grid"><label th:each="formato : ${formatos}" th:for="${'qtd-' + formato.id}"><span class="format-label" th:text="${formato.nome}"></span><input type="number" th:id="${'qtd-' + formato.id}" th:name="${'quantidades[' + formato.id + ']'}" th:value="${form.quantidades[formato.id]}" th:attr="data-formato=${formato.id}" th:min="${registro == null ? 0 : 1}" max="1000000000" step="1" inputmode="numeric" required><span class="field-help">tijolos</span></label></div>
       <p class="field-help" th:if="${registro == null}">Deixe zero no formato que não foi produzido: ele não gera registro. Pelo menos um formato precisa ter produção.</p>
+      <th:block th:if="${registro != null}">
+        <label for="idMotivo">Motivo da correção<select th:field="*{idMotivo}" required><option value="">Escolha o motivo</option><option th:each="m : ${motivosCorrecao}" th:value="${m.id}" th:text="${m.descricao}"></option></select></label>
+        <label for="textoMotivo">Descreva o motivo (obrigatório para "Outro")<input type="text" th:field="*{textoMotivo}" maxlength="500"></label>
+      </th:block>
       <button type="button" id="review-button" class="button primary full">Conferir antes de salvar <span aria-hidden="true">→</span></button>
       <noscript><button class="button primary full" type="submit">Conferi os valores, salvar</button></noscript>
     </div>

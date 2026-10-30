@@ -41,6 +41,7 @@ class FluxoMarombaTest {
     @Autowired MockMvc mvc;
     @Autowired PasswordEncoder encoder;
     @Autowired JdbcIndexedSessionRepository sessoes;
+    @Autowired MotivoRepository motivos;
     private UsuarioAutenticado registro, outroRegistro, outraUnidade, gestor, geral, admin;
     private static final String SENHA = "senha-exclusiva-dos-testes";
     private static String senhaHash;
@@ -64,9 +65,13 @@ class FluxoMarombaTest {
         f.getQuantidades().put(SEIS_FUROS, seis); f.getQuantidades().put(OITO_FUROS, oito);
         return f;
     }
-    // A correction form carries only the format of the record being corrected.
+    private UUID motivo(Motivo.Tipo tipo, String descricao) {
+        return motivos.findByTipoAndAtivoTrueOrderByDescricao(tipo).stream().filter(m -> m.getDescricao().equals(descricao)).findFirst().orElseThrow().getId();
+    }
+    // A correction form carries only the format of the record being corrected, and a reason (RN15).
     private MarombaForm correcao(Maromba m, int quantidade) {
         var f = new MarombaForm(); f.setData(m.getData()); f.setChaveEnvio(m.getChaveEnvio()); f.setVersao(m.getVersao());
+        f.setIdMotivo(motivo(Motivo.Tipo.CORRECAO, "Contagem errada"));
         f.getQuantidades().put(m.getFormato().getId(), quantidade);
         return f;
     }
@@ -150,10 +155,14 @@ class FluxoMarombaTest {
     }
     @Test void registroNaoVeNemEditaRegistroDeOutroAutorMesmoNaMesmaUnidade() {
         var m = service.criar(registro, form(100, 200)).getFirst();
-        for (var outro : List.of(outroRegistro, outraUnidade, admin)) {
+        for (var outro : List.of(outroRegistro, outraUnidade)) {
             assertThatThrownBy(() -> service.consultar(m.getId(), outro)).isInstanceOf(AccessDeniedException.class);
             assertThatThrownBy(() -> service.editar(m.getId(), outro, correcao(m, 1))).isInstanceOf(AccessDeniedException.class);
         }
+        // RN05: the Administrador reads everything but never changes production records.
+        assertThat(service.consultar(m.getId(), admin).getId()).isEqualTo(m.getId());
+        assertThatThrownBy(() -> service.editar(m.getId(), admin, correcao(m, 1))).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> service.cancelar(m.getId(), admin, m.getVersao(), motivo(Motivo.Tipo.CANCELAMENTO, "Data errada"), null)).isInstanceOf(AccessDeniedException.class);
     }
     @Test void geralApenasConsultaEGestorNaoPodeCriarComoRegistroDeProducao() {
         var m = service.criar(registro, form(100, 200)).getFirst();
@@ -212,7 +221,8 @@ class FluxoMarombaTest {
         mvc.perform(get("/painel").with(autenticado(registro))).andExpect(status().isForbidden());
         mvc.perform(get("/producao/maromba").with(autenticado(gestor))).andExpect(status().isForbidden());
         mvc.perform(post("/producao/maromba").with(autenticado(registro))).andExpect(status().isForbidden());
-        mvc.perform(get("/producao").with(autenticado(admin))).andExpect(status().isForbidden());
+        mvc.perform(get("/producao").with(autenticado(admin))).andExpect(status().isOk());
+        mvc.perform(get("/producao/maromba").with(autenticado(admin))).andExpect(status().isForbidden());
     }
     @Test void telasRenderizamComDadosEPermissoes() throws Exception {
         var m = service.criar(registro, form(100, 200)).getFirst();
