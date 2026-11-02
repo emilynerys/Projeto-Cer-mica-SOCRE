@@ -1,8 +1,6 @@
-<!DOCTYPE html><html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"><head th:replace="~{fragments/layout :: head('Lançamentos')}"></head>
+<!DOCTYPE html><html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"><head th:replace="~{fragments/layout :: head(${registroProducao ? 'Histórico de registros' : 'Lançamentos'})}"></head>
 <body><header th:replace="~{fragments/layout :: header}"></header><main class="container">
-  <div class="page-heading"><div><p class="eyebrow">Acompanhamento diário</p><h1 th:text="${registroProducao ? 'Meus registros' : 'Lançamentos de produção'}"></h1><p class="muted" th:text="${registroProducao ? 'Confira o que você registrou e corrija enquanto estiver pendente.' : 'Confira os valores antes de liberar os registros para os indicadores.'}"></p></div>
-    <div class="actions" th:if="${registroProducao}"><a class="button primary" th:href="@{/producao/maromba}"><span aria-hidden="true">+</span> Maromba</a><a class="button primary" th:href="@{/producao/enforna/nova}"><span aria-hidden="true">+</span> Enforna</a><a class="button primary" th:href="@{/producao/desenforna/nova}"><span aria-hidden="true">+</span> Desenforna</a></div>
-  </div>
+  <div class="page-heading"><div><p class="eyebrow" th:text="${registroProducao ? 'Consulta' : 'Acompanhamento diário'}"></p><h1 th:text="${registroProducao ? 'Histórico de registros' : 'Lançamentos de produção'}"></h1><p class="muted" th:text="${registroProducao ? 'Confira o que você registrou e corrija enquanto estiver pendente.' : 'Um dia por linha. Abra o dia para conferir e validar os lançamentos.'}"></p></div></div>
   <div class="notice success" role="status" th:if="${param.salvo}"><strong>Registrado com sucesso.</strong> <span th:text="${param.salvo[0] + ' registros foram criados, um para cada formato com produção.'}"></span></div>
   <div class="notice success" role="status" th:if="${sucesso}" th:text="${sucesso}"></div><div class="notice error" role="alert" th:if="${falha}" th:text="${falha}"></div>
   <section class="panel"><form method="get" th:action="@{/producao}" class="filters">
@@ -11,20 +9,47 @@
     <label>Situação<select name="situacao"><option value="">Todas</option><option value="PENDENTE" th:selected="${situacao != null and situacao.name() == 'PENDENTE'}">Pendentes</option><option value="VALIDADO" th:selected="${situacao != null and situacao.name() == 'VALIDADO'}">Validados</option><option value="CANCELADO" th:selected="${situacao != null and situacao.name() == 'CANCELADO'}">Cancelados</option></select></label>
     <button type="submit" class="button secondary">Aplicar filtros</button>
   </form></section>
-  <section class="panel records-panel" aria-labelledby="records-title"><div class="section-heading"><h2 id="records-title">Produção registrada</h2><span class="counter" th:text="${registros.totalElements + ' registro(s)'}"></span></div>
-    <div th:if="${registros.empty}" class="empty-state"><span class="empty-mark" aria-hidden="true">▤</span><h3>Nenhum registro neste período</h3><p th:text="${registroProducao ? 'Registre a Maromba, a Enforna ou a Desenforna pelos botões acima.' : 'Os lançamentos aparecerão aqui quando forem registrados.'}"></p></div>
-    <form th:unless="${registros.empty}" method="post" th:action="@{/producao/validar-lote}" id="lote-form">
-      <div class="lote-bar" th:if="${podeValidarLote}"><label class="check"><input type="checkbox" id="marcar-todos"> Marcar todos os pendentes desta página</label><button type="submit" class="button primary">Validar selecionados</button></div>
-      <div class="table-wrap"><table><thead><tr><th th:if="${podeValidarLote}"><span class="sr-only">Selecionar</span></th><th>Data / unidade</th><th>Etapa</th><th>Formato</th><th>Valores</th><th>Situação</th><th><span class="sr-only">Ação</span></th></tr></thead><tbody>
-        <tr th:each="l : ${registros.content}">
-          <td th:if="${podeValidarLote}"><input th:if="${l.situacao.name() == 'PENDENTE'}" type="checkbox" name="ids" th:value="${l.chave}" data-lote th:attr="aria-label=${'Selecionar ' + l.etapa + ' ' + l.formato + ' de ' + fmt.data(l.data)}"></td>
-          <td data-label="Data / unidade"><strong th:text="${fmt.data(l.data)}"></strong><small th:text="${l.unidade}"></small></td>
+
+  <!-- Registro de Produção: every record, newest first. -->
+  <section th:if="${registroProducao}" class="panel records-panel" aria-labelledby="records-title"><div class="section-heading"><h2 id="records-title">Produção registrada</h2><span class="counter" th:text="${registros.totalElements + ' registro(s)'}"></span></div>
+    <div th:if="${registros.empty}" class="empty-state"><span class="empty-mark" aria-hidden="true">▤</span><h3>Nenhum registro neste período</h3><p>Para lançar, use a tela Lançamentos.</p><a class="button secondary" th:href="@{/lancamentos}">Ir para Lançamentos</a></div>
+    <div class="table-wrap" th:unless="${registros.empty}"><table><thead><tr><th>Data</th><th>Etapa</th><th>Formato</th><th>Valores</th><th>Situação</th><th><span class="sr-only">Ação</span></th></tr></thead><tbody>
+      <tr th:each="l : ${registros.content}">
+        <td data-label="Data"><strong th:text="${fmt.data(l.data)}"></strong></td>
+        <td data-label="Etapa"><span th:text="${l.etapa}"></span><small th:if="${l.fornada != null}" th:text="${l.fornada}"></small></td>
+        <td data-label="Formato" th:text="${l.formato}"></td><td data-label="Valores" th:text="${l.resumo}"></td>
+        <td data-label="Situação"><span class="badge" th:classappend="${l.situacao.name() == 'PENDENTE' ? 'pending' : (l.situacao.name() == 'VALIDADO' ? 'validated' : '')}" th:text="${l.situacao.descricao}"></span></td>
+        <td><a class="button quiet" th:href="@{${l.url}}">Abrir <span aria-hidden="true">→</span></a></td></tr>
+    </tbody></table></div>
+    <div class="pagination" th:if="${registros.totalPages > 1}"><a class="button secondary" th:if="${registros.hasPrevious()}" th:href="@{/producao(inicio=${inicio},fim=${fim},situacao=${situacao},etapa=${etapa},pagina=${registros.number - 1})}">Anterior</a><span th:text="${'Página ' + (registros.number + 1) + ' de ' + registros.totalPages}"></span><a class="button secondary" th:if="${registros.hasNext()}" th:href="@{/producao(inicio=${inicio},fim=${fim},situacao=${situacao},etapa=${etapa},pagina=${registros.number + 1})}">Próxima</a></div>
+  </section>
+
+  <!-- Gestores: one line per day; the day's records open in a window on the same page. -->
+  <section th:unless="${registroProducao}" class="panel records-panel" aria-labelledby="days-title"><div class="section-heading"><h2 id="days-title">Dias com lançamento</h2><span class="counter" th:text="${dias.size() + ' dia(s) · ' + registros.totalElements + ' registro(s)'}"></span></div>
+    <div th:if="${dias.empty}" class="empty-state"><span class="empty-mark" aria-hidden="true">▤</span><h3>Nenhum lançamento neste período</h3><p>Os lançamentos aparecerão aqui quando forem registrados.</p></div>
+    <div class="table-wrap" th:unless="${dias.empty}"><table><thead><tr><th>Dia</th><th>Lançamentos</th><th>Situação</th><th><span class="sr-only">Ação</span></th></tr></thead><tbody>
+      <tr th:each="d : ${dias}">
+        <td data-label="Dia"><strong th:text="${fmt.data(d.data)}"></strong><small th:text="${d.unidade}"></small></td>
+        <td data-label="Lançamentos" th:text="${d.resumo()}"></td>
+        <td data-label="Situação"><span class="badge pending" th:if="${d.pendentes() > 0}" th:text="${d.pendentes() + ' pendente(s)'}"></span><span class="badge validated" th:if="${d.pendentes() == 0}">Nada pendente</span></td>
+        <td><button type="button" class="button quiet" th:attr="data-open-dialog=${d.id}">Ver lançamentos <span aria-hidden="true">→</span></button></td></tr>
+    </tbody></table></div>
+  </section>
+
+  <th:block th:unless="${registroProducao}"><dialog th:each="d : ${dias}" th:id="${d.id}" class="day-dialog" th:attr="aria-labelledby=${d.id + '-title'}">
+    <form method="post" th:action="@{/producao/validar-lote}" class="day-form">
+      <input type="hidden" name="inicio" th:value="${inicio}"><input type="hidden" name="fim" th:value="${fim}">
+      <div class="dialog-heading"><div><h2 th:id="${d.id + '-title'}" th:text="${fmt.data(d.data)}"></h2><p class="muted" th:text="${d.unidade + ' · ' + d.resumo()}"></p></div>
+        <button type="button" class="button quiet" data-close-dialog aria-label="Fechar">Fechar ✕</button></div>
+      <div class="lote-bar" th:if="${podeValidarLote and d.pendentes() > 0}"><label class="check"><input type="checkbox" data-marcar-todos> Marcar todos os pendentes do dia</label><button type="submit" class="button primary">Validar selecionados</button></div>
+      <div class="table-wrap"><table><thead><tr><th th:if="${podeValidarLote}"><span class="sr-only">Selecionar</span></th><th>Etapa</th><th>Formato</th><th>Valores</th><th>Situação</th><th><span class="sr-only">Ação</span></th></tr></thead><tbody>
+        <tr th:each="l : ${d.linhas}">
+          <td th:if="${podeValidarLote}"><input th:if="${l.situacao.name() == 'PENDENTE'}" type="checkbox" name="ids" th:value="${l.chave}" data-lote th:attr="aria-label=${'Selecionar ' + l.etapa + ' ' + l.formato}"></td>
           <td data-label="Etapa"><span th:text="${l.etapa}"></span><small th:if="${l.fornada != null}" th:text="${l.fornada}"></small></td>
           <td data-label="Formato" th:text="${l.formato}"></td><td data-label="Valores" th:text="${l.resumo}"></td>
           <td data-label="Situação"><span class="badge" th:classappend="${l.situacao.name() == 'PENDENTE' ? 'pending' : (l.situacao.name() == 'VALIDADO' ? 'validated' : '')}" th:text="${l.situacao.descricao}"></span></td>
           <td><a class="button quiet" th:href="@{${l.url}}">Abrir <span aria-hidden="true">→</span></a></td></tr>
       </tbody></table></div>
     </form>
-    <div class="pagination" th:if="${registros.totalPages > 1}"><a class="button secondary" th:if="${registros.hasPrevious()}" th:href="@{/producao(inicio=${inicio},fim=${fim},situacao=${situacao},etapa=${etapa},pagina=${registros.number - 1})}">Anterior</a><span th:text="${'Página ' + (registros.number + 1) + ' de ' + registros.totalPages}"></span><a class="button secondary" th:if="${registros.hasNext()}" th:href="@{/producao(inicio=${inicio},fim=${fim},situacao=${situacao},etapa=${etapa},pagina=${registros.number + 1})}">Próxima</a></div>
-  </section>
+  </dialog></th:block>
 </main><footer th:replace="~{fragments/layout :: footer}"></footer></body></html>

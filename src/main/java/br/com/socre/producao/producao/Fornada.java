@@ -11,10 +11,14 @@ import java.util.*;
 public class Fornada {
     public enum Situacao { EM_ANDAMENTO, CONCLUIDA }
     public enum Marco {
-        ENFORNA_CONCLUIDA("Enforna concluída"), INICIO_ESQUENTE("Início do esquente"), INICIO_QUEIMA("Início da queima"), FIM_QUEIMA("Fim da queima");
-        private final String descricao;
-        Marco(String descricao) { this.descricao = descricao; }
+        // ENFORNA_CONCLUIDA is set when the next load opens; INICIO_QUEIMA is estimated and kept only for loads that recorded it.
+        ENFORNA_CONCLUIDA("Enforna encerrada", false), INICIO_ESQUENTE("Início do esquente", true),
+        INICIO_QUEIMA("Início da queima", false), FIM_QUEIMA("Fim da queima", true);
+        private final String descricao; private final boolean manual;
+        Marco(String descricao, boolean manual) { this.descricao = descricao; this.manual = manual; }
         public String getDescricao() { return descricao; }
+        public boolean isManual() { return manual; }
+        public static List<Marco> manuais() { return Arrays.stream(values()).filter(Marco::isManual).toList(); }
     }
     @Id private UUID id;
     @ManyToOne @JoinColumn(name = "id_unidade", nullable = false) private Unidade unidade;

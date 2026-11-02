@@ -10,12 +10,12 @@ import org.springframework.transaction.annotation.Transactional;
 // Enforna: bricks put into a furnace load, one record per format and day (RN09, RN12, RN14).
 @Service
 public class EnfornaService extends EtapaService<Enforna> {
-    private final EnfornaRepository enfornas; private final FornadaRepository fornadas; private final FornadaService fornadaService;
+    private final EnfornaRepository enfornas; private final FornadaService fornadaService;
     private final FormatoRepository formatos; private final InventarioRepository inventarios;
-    public EnfornaService(EnfornaRepository enfornas, FornadaRepository fornadas, FornadaService fornadaService,
+    public EnfornaService(EnfornaRepository enfornas, FornadaService fornadaService,
             FormatoRepository formatos, InventarioRepository inventarios, RegistroApoio apoio) {
         super(enfornas, apoio);
-        this.enfornas = enfornas; this.fornadas = fornadas; this.fornadaService = fornadaService; this.formatos = formatos; this.inventarios = inventarios;
+        this.enfornas = enfornas; this.fornadaService = fornadaService; this.formatos = formatos; this.inventarios = inventarios;
     }
     @Override protected String tabela() { return "enforna"; }
     record Linha(Formato formato, int linhas, int tijolosPorLinha, int quantidade) {}
@@ -33,7 +33,7 @@ public class EnfornaService extends EtapaService<Enforna> {
         }
         if (linhas.isEmpty()) throw new RegraNegocioException("Informe ao menos um formato com linhas enfornadas.");
         apoio.travar(f.getChaveEnvio().toString());
-        var texto = new StringBuilder(autor.getId() + "|" + f.getData() + "|" + (f.isNovaFornada() ? "nova" : f.getIdFornada()));
+        var texto = new StringBuilder(autor.getId() + "|" + f.getData() + "|" + f.getIdFornada());
         linhas.forEach(l -> texto.append('|').append(l));
         String impressao = apoio.impressao(texto.toString());
         var anteriores = enfornas.findByChaveEnvioOrderByFormatoNome(f.getChaveEnvio());
@@ -42,21 +42,16 @@ public class EnfornaService extends EtapaService<Enforna> {
                 throw new RegraNegocioException("Este envio já foi usado com outros dados. Consulte seus registros e abra um novo formulário.");
             return anteriores;
         }
-        Fornada fornada = null;
-        if (!f.isNovaFornada()) {
-            fornada = f.getIdFornada() == null ? null : fornadas.findById(f.getIdFornada()).orElse(null);
-            if (fornada == null || !fornada.getUnidade().getId().equals(unidade.getId()))
-                throw new RegraNegocioException("Escolha a fornada que está recebendo Enforna ou \"Nova fornada\".");
-            if (!fornada.isRecebendoEnforna())
-                throw new RegraNegocioException("A " + fornada.getIdentificacao() + " não recebe mais Enforna. Escolha outra fornada.");
-        } else if (!fornadaService.podeAbrirNova(unidade.getId())) {
-            throw new RegraNegocioException("Não é possível começar uma nova fornada agora: ainda há fornada recebendo Enforna ou já há duas em andamento.");
-        }
+        // RN08: Enforna always goes to the load the Gestor opened last; the form says which one it showed.
+        var fornada = fornadaService.paraEnforna(unidade.getId()).orElseThrow(() ->
+            new RegraNegocioException("Nenhuma fornada aberta para Enforna. Peça ao Gestor de Produção para abrir a fornada na tela Fornadas."));
+        if (f.getIdFornada() != null && !f.getIdFornada().equals(fornada.getId()))
+            throw new RegraNegocioException("O Gestor de Produção abriu a " + fornada.getIdentificacao() + " enquanto você preenchia. Confira e envie de novo.");
+        conferirCapacidade(linhas, fornada, unidade, 0);
         if (!f.isConfirmarAvisos()) {
             var avisos = avisos(linhas, fornada, unidade, 0);
             if (!avisos.isEmpty()) throw new AvisosPendentesException(avisos);
         }
-        if (fornada == null) fornada = fornadaService.abrirNova(unidade, autor);
         var criados = new ArrayList<Enforna>();
         for (var l : linhas) {
             if (enfornas.existeAtivo(fornada.getId(), l.formato().getId(), f.getData()))
@@ -74,6 +69,7 @@ public class EnfornaService extends EtapaService<Enforna> {
         apoio.conferirData(e.getUnidade(), f.getData());
         var l = linha(e.getFormato(), f.getItens().get(e.getFormato().getId()));
         if (l == null) throw new RegraNegocioException("Informe as linhas enfornadas de " + e.getFormato().getNome() + ". Para apagar o registro, use o cancelamento.");
+        conferirCapacidade(List.of(l), e.getFornada(), e.getUnidade(), e.getLinhas());
         if (!f.isConfirmarAvisos()) {
             var avisos = avisos(List.of(l), e.getFornada(), e.getUnidade(), e.getLinhas());
             if (!avisos.isEmpty()) throw new AvisosPendentesException(avisos);
@@ -100,7 +96,24 @@ public class EnfornaService extends EtapaService<Enforna> {
         if (quantidade <= 0) throw new RegraNegocioException("Informe a quantidade de tijolos de " + formato.getNome() + ".");
         return new Linha(formato, linhas, porLinha, quantidade);
     }
-    /** RN14: more bricks than lines × reference, or more lines than the useful capacity of the kiln. Never blocks. */
+    /** Lines the kiln holds: two of them always stay empty (field visit of 06/10/2026). */
+    public static int capacidade(Unidade unidade) { return unidade.getLinhasForno() - 2; }
+    /** Lines already in the load: initial inventory plus Enforna not cancelled. */
+    public int linhasOcupadas(Fornada fornada) {
+        if (fornada == null) return 0;
+        return enfornas.daFornada(fornada.getId()).stream().mapToInt(Enforna::getLinhas).sum()
+            + inventarios.findByFornadaId(fornada.getId()).stream().mapToInt(i -> i.getLinhas() == null ? 0 : i.getLinhas()).sum();
+    }
+    /** RN14: the load cannot pass the kiln capacity, adding all formats; a correction that does not add lines is always accepted. */
+    private void conferirCapacidade(List<Linha> linhas, Fornada fornada, Unidade unidade, int linhasJaContadas) {
+        int novas = linhas.stream().mapToInt(Linha::linhas).sum() - linhasJaContadas;
+        int ocupadas = linhasOcupadas(fornada), limite = capacidade(unidade);
+        if (novas > 0 && ocupadas + novas > limite)
+            throw new RegraNegocioException("O forno comporta " + limite + " linhas (" + unidade.getLinhasForno() + " menos as 2 que ficam vagas). "
+                + (fornada == null ? "" : "A " + fornada.getIdentificacao() + " já tem " + ocupadas + ". ")
+                + "Ainda cabem " + Math.max(0, limite - ocupadas) + " linhas, somando todos os formatos.");
+    }
+    /** RN14: more bricks than lines × reference ask for confirmation; a saved load above the capacity is shown to the Gestor. */
     private List<String> avisos(List<Linha> linhas, Fornada fornada, Unidade unidade, int linhasJaContadas) {
         var avisos = new ArrayList<String>();
         var n = NumberFormat.getIntegerInstance(Locale.forLanguageTag("pt-BR"));
@@ -110,16 +123,9 @@ public class EnfornaService extends EtapaService<Enforna> {
                 avisos.add(l.formato().getNome() + ": " + n.format(l.quantidade()) + " tijolos é mais do que " + l.linhas() + " linhas × "
                     + n.format(l.formato().getTijolosPorLinha()) + " = " + n.format(esperado) + ".");
         }
-        int novas = linhas.stream().mapToInt(Linha::linhas).sum() - linhasJaContadas;
-        int atuais = 0;
-        if (fornada != null) {
-            atuais += enfornas.daFornada(fornada.getId()).stream().mapToInt(Enforna::getLinhas).sum();
-            atuais += inventarios.findByFornadaId(fornada.getId()).stream().mapToInt(i -> i.getLinhas() == null ? 0 : i.getLinhas()).sum();
-        }
-        // Line 1 is the firebox, so the useful capacity is one line less than the kiln size.
-        int uteis = unidade.getLinhasForno() - 1;
-        if (atuais + novas > uteis)
-            avisos.add("A fornada ficaria com " + (atuais + novas) + " linhas enfornadas, mais do que as " + uteis + " linhas úteis do forno.");
+        int total = linhasOcupadas(fornada) + linhas.stream().mapToInt(Linha::linhas).sum() - linhasJaContadas;
+        if (total > capacidade(unidade))
+            avisos.add("A fornada ficaria com " + total + " linhas enfornadas, mais do que as " + capacidade(unidade) + " que o forno comporta.");
         return avisos;
     }
 }

@@ -43,7 +43,8 @@ class FluxoFornadaTest {
     private LocalDate hoje() { return marombas.hoje(); }
     private EnfornaForm enforna(Fornada fornada, int linhas8f, Integer quantidade8f) {
         var f = new EnfornaForm(); f.setData(hoje()); f.setChaveEnvio(UUID.randomUUID());
-        if (fornada == null) f.setNovaFornada(true); else f.setIdFornada(fornada.getId());
+        // Without a load, the form says nothing and the Enforna goes to the load open for Enforna.
+        if (fornada != null) f.setIdFornada(fornada.getId());
         f.getItens().put(OITO_FUROS, new EnfornaForm.Item(linhas8f, null, quantidade8f));
         return f;
     }
@@ -53,52 +54,72 @@ class FluxoFornadaTest {
         return f;
     }
     private Fornada recarregar(Fornada f) { return fornadas.consultar(f.getId(), gestor); }
+    private Fornada abrir() { return fornadas.abrirNova(unidade.getId(), gestor); }
 
-    @Test void novaFornadaNumeradaNoMesEAteDuasEmAndamento() {
-        var e = enfornas.criar(registro, enforna(null, 3, null)).getFirst();
-        var primeira = e.getFornada();
+    @Test void gestorAbreFornadaNumeradaNoMesEAteDuasEmAndamento() {
+        // RN08: without a load opened by the Gestor there is no Enforna, and only the Gestor opens one.
+        assertThatThrownBy(() -> enfornas.criar(registro, enforna(null, 3, null))).hasMessageContaining("Nenhuma fornada aberta");
+        assertThatThrownBy(() -> fornadas.abrirNova(unidade.getId(), registro)).isInstanceOf(AccessDeniedException.class);
+        var primeira = abrir();
         assertThat(primeira.getNumero()).isEqualTo(1);
         assertThat(primeira.getIdentificacao()).startsWith("1ª fornada de ");
+        var e = enfornas.criar(registro, enforna(null, 3, null)).getFirst();
+        assertThat(e.getFornada().getId()).isEqualTo(primeira.getId());
         assertThat(e.getTijolosPorLinha()).isEqualTo(1610);
         assertThat(e.getQuantidade()).isEqualTo(3 * 1610); // RN12: suggestion lines × reference
-        // RN08: no second load while the first still takes Enforna.
-        assertThatThrownBy(() -> enfornas.criar(registro, enforna(null, 2, null))).isInstanceOf(RegraNegocioException.class);
-        fornadas.registrarMarco(primeira.getId(), registro, primeira.getVersao(), Fornada.Marco.ENFORNA_CONCLUIDA, Instant.now());
-        assertThatThrownBy(() -> enfornas.criar(registro, enforna(recarregar(primeira), 1, null))).isInstanceOf(RegraNegocioException.class);
-        var segunda = enfornas.criar(registro, enforna(null, 2, null)).getFirst().getFornada();
+        // Opening the next load ends the Enforna of the previous one.
+        var segunda = abrir();
         assertThat(segunda.getNumero()).isEqualTo(2);
+        assertThat(recarregar(primeira).isRecebendoEnforna()).isFalse();
+        assertThatThrownBy(() -> enfornas.criar(registro, enforna(recarregar(primeira), 1, null))).hasMessageContaining("abriu a 2ª fornada");
+        assertThat(enfornas.criar(registro, enforna(null, 2, null)).getFirst().getFornada().getId()).isEqualTo(segunda.getId());
         assertThat(fornadas.emAndamento(unidade.getId())).hasSize(2);
-        fornadas.registrarMarco(segunda.getId(), registro, segunda.getVersao(), Fornada.Marco.ENFORNA_CONCLUIDA, Instant.now());
         assertThat(fornadas.podeAbrirNova(unidade.getId())).isFalse();
-        assertThatThrownBy(() -> enfornas.criar(registro, enforna(null, 2, null))).isInstanceOf(RegraNegocioException.class);
+        assertThatThrownBy(this::abrir).isInstanceOf(RegraNegocioException.class);
         fornadas.concluir(primeira.getId(), gestor, recarregar(primeira).getVersao());
-        assertThat(enfornas.criar(registro, enforna(null, 1, null)).getFirst().getFornada().getNumero()).isEqualTo(3);
+        assertThat(abrir().getNumero()).isEqualTo(3);
     }
-    @Test void avisosPedemConfirmacaoSemBloquear() {
+    @Test void avisosPedemConfirmacaoELimiteDoFornoBloqueia() {
+        var fornada = abrir();
         var f = enforna(null, 2, 5000);
         assertThatThrownBy(() -> enfornas.criar(registro, f)).isInstanceOf(AvisosPendentesException.class)
             .satisfies(e -> assertThat(((AvisosPendentesException) e).getAvisos()).anyMatch(a -> a.contains("2 linhas")));
-        assertThat(fornadas.emAndamento(unidade.getId())).isEmpty(); // nothing saved, not even the new load
+        assertThat(fornadas.balanco(fornada.getId(), gestor).linhasEnfornadas()).isZero(); // nothing saved
         f.setConfirmarAvisos(true);
         var e = enfornas.criar(registro, f).getFirst();
         assertThat(e.getQuantidade()).isEqualTo(5000);
         assertThat(enfornas.avisos(e)).isNotEmpty(); // the Gestor still sees it when validating
-        var muitas = enforna(e.getFornada(), 50, null); muitas.setData(hoje().minusDays(1));
-        assertThatThrownBy(() -> enfornas.criar(registro, muitas)).isInstanceOf(AvisosPendentesException.class)
-            .satisfies(x -> assertThat(((AvisosPendentesException) x).getAvisos()).anyMatch(a -> a.contains("linhas úteis")));
+        // RN14: 46 lines, 2 always empty: 44 fit, adding every format, and confirming does not get past it.
+        var muitas = enforna(null, 43, null); muitas.setData(hoje().minusDays(1)); muitas.setConfirmarAvisos(true);
+        assertThatThrownBy(() -> enfornas.criar(registro, muitas)).isInstanceOf(RegraNegocioException.class).hasMessageContaining("Ainda cabem 42");
+        var cheia = enforna(null, 30, null); cheia.setData(hoje().minusDays(1));
+        cheia.getItens().put(SEIS_FUROS, new EnfornaForm.Item(12, null, null));
+        assertThat(enfornas.criar(registro, cheia)).hasSize(2);
+        var mais = enforna(null, 1, null); mais.setData(hoje().minusDays(2));
+        assertThatThrownBy(() -> enfornas.criar(registro, mais)).hasMessageContaining("Ainda cabem 0");
+        // A correction that does not add lines is accepted even with the kiln full.
+        var menos = enforna(null, 1, null); menos.setVersao(e.getVersao()); menos.setIdMotivo(motivo(Motivo.Tipo.CORRECAO, "Digitação errada"));
+        menos.setConfirmarAvisos(true);
+        assertThat(enfornas.editar(e.getId(), registro, menos).getLinhas()).isEqualTo(1);
     }
     @Test void desenfornaComBalancoEConclusaoComDiferenca() {
+        abrir();
         var fornada = enfornas.criar(registro, enforna(null, 3, null)).getFirst().getFornada();
         var d = desenfornas.criar(registro, desenforna(fornada, 2, 2500, 400, 200)).getFirst();
         assertThat(d.getAcabado()).isEqualTo(2900); // RN10: Cru is not finished production
-        var acima = desenforna(fornada, 2, 2000, 300, 100); acima.setData(hoje().minusDays(1));
-        assertThatThrownBy(() -> desenfornas.criar(registro, acima)).isInstanceOf(AvisosPendentesException.class)
-            .satisfies(e -> assertThat(((AvisosPendentesException) e).getAvisos()).anyMatch(a -> a.contains("mais do que as 3 linhas enfornadas")));
-        acima.setConfirmarAvisos(true);
-        desenfornas.criar(registro, acima);
+        // RN14: no more lines come out than went in.
+        var acima = desenforna(fornada, 2, 2000, 300, 100); acima.setData(hoje().minusDays(1)); acima.setConfirmarAvisos(true);
+        assertThatThrownBy(() -> desenfornas.criar(registro, acima)).isInstanceOf(RegraNegocioException.class).hasMessageContaining("Ainda podem sair 1 linhas");
+        var resto = desenforna(fornada, 1, 2000, 300, 100); resto.setData(hoje().minusDays(1));
+        assertThatThrownBy(() -> desenfornas.criar(registro, resto)).isInstanceOf(AvisosPendentesException.class);
+        resto.setConfirmarAvisos(true);
+        desenfornas.criar(registro, resto);
         var balanco = fornadas.balanco(fornada.getId(), gestor);
         assertThat(balanco.linhasEnfornadas()).isEqualTo(3);
-        assertThat(balanco.linhasDesenfornadas()).isEqualTo(4);
+        assertThat(balanco.linhasDesenfornadas()).isEqualTo(3);
+        assertThat(balanco.primeira()).isEqualTo(4500);
+        assertThat(balanco.segunda()).isEqualTo(700);
+        assertThat(balanco.cru()).isEqualTo(300);
         assertThat(balanco.sugerirConclusao()).isTrue();
         assertThat(balanco.diferenca()).isEqualTo(3100 + 2400 - 4830);
         assertThatThrownBy(() -> fornadas.concluir(fornada.getId(), registro, recarregar(fornada).getVersao())).isInstanceOf(AccessDeniedException.class);
@@ -109,6 +130,7 @@ class FluxoFornadaTest {
         assertThatThrownBy(() -> desenfornas.criar(registro, depois)).isInstanceOf(RegraNegocioException.class);
     }
     @Test void correcaoComMotivoEGestorCorrigeValidado() {
+        abrir();
         var e = enfornas.criar(registro, enforna(null, 3, null)).getFirst();
         var semMotivo = enforna(e.getFornada(), 4, null); semMotivo.setVersao(e.getVersao());
         assertThatThrownBy(() -> enfornas.editar(e.getId(), registro, semMotivo)).isInstanceOf(RegraNegocioException.class);
@@ -129,6 +151,7 @@ class FluxoFornadaTest {
         assertThat(peloGestor.getLinhas()).isEqualTo(5);
     }
     @Test void cancelamentoComMotivoLiberaANovaDigitacao() {
+        abrir();
         var f = enforna(null, 3, null);
         var e = enfornas.criar(registro, f).getFirst();
         assertThatThrownBy(() -> enfornas.cancelar(e.getId(), registro, e.getVersao(), motivo(Motivo.Tipo.CORRECAO, "Contagem errada"), null))
@@ -175,16 +198,23 @@ class FluxoFornadaTest {
         assertThat(desenfornas.criar(registro, d)).hasSize(1);
     }
     @Test void horariosDaQueimaEVelocidade() {
+        abrir();
         var fornada = enfornas.criar(registro, enforna(null, 40, 64400)).getFirst().getFornada();
         var inicio = Instant.now().minus(Duration.ofDays(5));
+        // RN21: the Gestor marks only the esquente and the end; the burning starts about 24 hours after the esquente.
         fornada = fornadas.registrarMarco(fornada.getId(), gestor, fornada.getVersao(), Fornada.Marco.INICIO_ESQUENTE, inicio);
-        fornada = fornadas.registrarMarco(fornada.getId(), gestor, fornada.getVersao(), Fornada.Marco.INICIO_QUEIMA, inicio.plus(Duration.ofHours(24)));
+        var semQueima = fornada;
+        assertThatThrownBy(() -> fornadas.registrarMarco(semQueima.getId(), gestor, semQueima.getVersao(), Fornada.Marco.INICIO_QUEIMA, inicio))
+            .isInstanceOf(RegraNegocioException.class);
         fornada = fornadas.registrarMarco(fornada.getId(), gestor, fornada.getVersao(), Fornada.Marco.FIM_QUEIMA, inicio.plus(Duration.ofHours(104)));
         var balanco = fornadas.balanco(fornada.getId(), geral);
+        assertThat(balanco.queimaEstimada()).isTrue();
         assertThat(balanco.horasEsquente()).isEqualTo(24.0);
         assertThat(balanco.horasQueima()).isEqualTo(80.0);
         assertThat(balanco.linhasPor24h()).isEqualTo(12.0);
         var f = fornada;
+        assertThatThrownBy(() -> fornadas.registrarMarco(f.getId(), registro, f.getVersao(), Fornada.Marco.FIM_QUEIMA, Instant.now()))
+            .isInstanceOf(AccessDeniedException.class);
         assertThatThrownBy(() -> fornadas.registrarMarco(f.getId(), gestor, f.getVersao(), Fornada.Marco.FIM_QUEIMA, Instant.now().plus(Duration.ofDays(1))))
             .isInstanceOf(RegraNegocioException.class);
         assertThatThrownBy(() -> fornadas.registrarMarco(f.getId(), geral, f.getVersao(), Fornada.Marco.FIM_QUEIMA, Instant.now()))

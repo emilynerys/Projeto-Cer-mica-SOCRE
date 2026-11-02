@@ -33,6 +33,19 @@ public class ProducaoController {
     /** One line of the list, whatever the stage; the key "tabela:id" feeds the batch validation (RF36). */
     public record Linha(String etapa, String url, LocalDate data, String unidade, String fornada, String formato, String resumo,
             Situacao situacao, Instant criadoEm, String chave) {}
+    /** The records of one production day and unit, opened in a window on the review screen. */
+    public record Dia(String id, LocalDate data, String unidade, List<Linha> linhas) {
+        public long pendentes() { return linhas.stream().filter(l -> l.situacao() == Situacao.PENDENTE).count(); }
+        /** "2 Maromba · 1 Enforna", in the order of the process. */
+        public String resumo() {
+            var porEtapa = new LinkedHashMap<String, Integer>();
+            for (var etapa : ETAPAS) porEtapa.put(etapa, 0);
+            linhas.forEach(l -> porEtapa.merge(l.etapa(), 1, Integer::sum));
+            return porEtapa.entrySet().stream().filter(e -> e.getValue() > 0).map(e -> e.getValue() + " " + e.getKey())
+                .reduce((a, b) -> a + " · " + b).orElse("");
+        }
+    }
+    private static final List<String> ETAPAS = List.of("Maromba", "Enforna", "Desenforna");
     private static final TemplateAdvice.Formatos FMT = new TemplateAdvice.Formatos();
 
     @GetMapping String lista(@AuthenticationPrincipal UsuarioAutenticado p, Model model,
@@ -42,6 +55,8 @@ public class ProducaoController {
             @RequestParam(defaultValue = "0") int pagina) {
         if (inicio == null) inicio = service.hoje().minusDays(14);
         if (fim == null) fim = service.hoje();
+        // "Todas" in the stage filter arrives as an empty value.
+        if (etapa != null && etapa.isBlank()) etapa = null;
         validarPeriodo(inicio, fim);
         boolean registroProducao = p.perfil() == Perfil.REGISTRO_PRODUCAO;
         UUID autor = registroProducao ? p.id() : null, unidade = registroProducao ? p.unidadeId() : null;
@@ -67,10 +82,27 @@ public class ProducaoController {
         model.addAttribute("registros", resultado); model.addAttribute("inicio", inicio); model.addAttribute("fim", fim);
         model.addAttribute("situacao", situacao); model.addAttribute("etapa", etapa); model.addAttribute("registroProducao", registroProducao);
         model.addAttribute("podeValidarLote", p.perfil() == Perfil.GESTOR_PRODUCAO);
+        // The review screen shows one line per day and unit; the day's records open in a window.
+        if (!registroProducao) model.addAttribute("dias", agruparPorDia(linhas));
         return "producao/lista";
     }
+    private static List<Dia> agruparPorDia(List<Linha> linhas) {
+        var grupos = new LinkedHashMap<String, List<Linha>>();
+        for (var l : linhas) grupos.computeIfAbsent(l.data() + "|" + l.unidade(), k -> new ArrayList<>()).add(l);
+        var dias = new ArrayList<Dia>();
+        int n = 0;
+        for (var grupo : grupos.values()) {
+            grupo.sort(Comparator.comparing((Linha l) -> ETAPAS.indexOf(l.etapa())).thenComparing(Linha::formato));
+            dias.add(new Dia("dia-" + (++n), grupo.getFirst().data(), grupo.getFirst().unidade(), grupo));
+        }
+        // Days with pending records first, then the most recent.
+        dias.sort(Comparator.comparing((Dia d) -> d.pendentes() == 0).thenComparing(Dia::data, Comparator.reverseOrder()).thenComparing(Dia::unidade));
+        return dias;
+    }
     /** RF36: validates the selected Pending records of any stage at once. */
-    @PostMapping("/validar-lote") String validarLote(@RequestParam(required = false) List<String> ids, @AuthenticationPrincipal UsuarioAutenticado p, RedirectAttributes flash) {
+    @PostMapping("/validar-lote") String validarLote(@RequestParam(required = false) List<String> ids, @AuthenticationPrincipal UsuarioAutenticado p, RedirectAttributes flash,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fim) {
         var porTabela = new HashMap<String, List<UUID>>();
         for (var chave : ids == null ? List.<String>of() : ids) {
             var partes = chave.split(":", 2);
@@ -80,7 +112,7 @@ public class ProducaoController {
             + enfornaService.validarLote(porTabela.getOrDefault("enforna", List.of()), p)
             + desenfornaService.validarLote(porTabela.getOrDefault("desenforna", List.of()), p);
         flash.addFlashAttribute("sucesso", validados == 0 ? "Nenhum registro pendente foi selecionado." : validados + " registro(s) validado(s).");
-        return "redirect:/producao";
+        return inicio == null || fim == null ? "redirect:/producao" : "redirect:/producao?inicio=" + inicio + "&fim=" + fim;
     }
     @GetMapping("/maromba") String nova(@AuthenticationPrincipal UsuarioAutenticado p, Model model) {
         var f = new MarombaForm(); f.setData(service.hoje()); f.setChaveEnvio(UUID.randomUUID());
