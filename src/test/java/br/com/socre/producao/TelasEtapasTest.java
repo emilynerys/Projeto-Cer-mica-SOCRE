@@ -59,11 +59,12 @@ class TelasEtapasTest {
         ((org.springframework.session.Session) sessao).setAttribute(PoliticaSessao.AUTENTICADO_EM, Instant.now()); sessoes.save(sessao);
         return request -> { request.setCookies(cookie); return request; };
     }
-    /** Posts a new Enforna of 8 furos in a new load and returns the created record. */
+    /** Posts a new Enforna of 8 furos only, in the open load, and returns the created record. */
     private Enforna registrarEnforna(RequestPostProcessor sessao, int linhas) throws Exception {
+        // 6 furos left all zero, bricks per line included: a day with only one format.
         var url = mvc.perform(post("/producao/enforna/nova").with(sessao).with(csrf())
                 .param("data", producao.hoje().toString()).param("chaveEnvio", UUID.randomUUID().toString()).param("versao", "0").param("idFornada", "")
-                .param("itens[" + SEIS_FUROS + "].linhas", "0").param("itens[" + SEIS_FUROS + "].tijolosPorLinha", "2200").param("itens[" + SEIS_FUROS + "].quantidade", "0")
+                .param("itens[" + SEIS_FUROS + "].linhas", "0").param("itens[" + SEIS_FUROS + "].tijolosPorLinha", "0").param("itens[" + SEIS_FUROS + "].quantidade", "0")
                 .param("itens[" + OITO_FUROS + "].linhas", String.valueOf(linhas)).param("itens[" + OITO_FUROS + "].tijolosPorLinha", "1610")
                 .param("itens[" + OITO_FUROS + "].quantidade", String.valueOf(linhas * 1610)))
             .andExpect(status().is3xxRedirection()).andReturn().getResponse().getRedirectedUrl();
@@ -71,23 +72,34 @@ class TelasEtapasTest {
         return enfornas.findById(UUID.fromString(url.substring(url.lastIndexOf('/') + 1))).orElseThrow();
     }
 
-    @Test void enfornaPelaTelaAbreFornadaEMostraODetalhe() throws Exception {
+    @Test void enfornaPelaTelaNaFornadaQueOGestorAbriu() throws Exception {
         var sessao = autenticado(registro);
+        // The Registro de Produção starts on the three stages; the history has its own page.
+        mvc.perform(get("/").with(sessao)).andExpect(redirectedUrl("/lancamentos"));
+        mvc.perform(get("/lancamentos").with(sessao)).andExpect(status().isOk())
+            .andExpect(content().string(containsString("/producao/enforna/nova"))).andExpect(content().string(containsString("Histórico de registros")));
         mvc.perform(get("/producao/enforna/nova").with(sessao)).andExpect(status().isOk())
-            .andExpect(content().string(containsString("Começar nova fornada"))).andExpect(content().string(containsString("Tijolos por linha")));
+            .andExpect(content().string(containsString("Nenhuma fornada aberta"))).andExpect(content().string(containsString("Tijolos por linha")));
+        var sessaoGestor = autenticado(gestor);
+        mvc.perform(get("/lancamentos").with(sessaoGestor)).andExpect(status().isForbidden());
+        mvc.perform(post("/fornadas/abrir").with(sessao).with(csrf()).param("unidade", unidade.getId().toString())).andExpect(status().isForbidden());
+        mvc.perform(post("/fornadas/abrir").with(sessaoGestor).with(csrf()).param("unidade", unidade.getId().toString()))
+            .andExpect(status().is3xxRedirection()).andExpect(flash().attribute("sucesso", org.hamcrest.Matchers.containsString("aberta")));
+        mvc.perform(get("/producao/enforna/nova").with(sessao)).andExpect(status().isOk())
+            .andExpect(content().string(containsString("1ª fornada de"))).andExpect(content().string(containsString("0 de 44 linhas ocupadas")))
+            .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Nenhuma fornada aberta"))));
         var e = registrarEnforna(sessao, 10);
         assertThat(e.getQuantidade()).isEqualTo(16100);
         assertThat(e.getFornada().getNumero()).isEqualTo(1);
         mvc.perform(get("/producao/enforna/" + e.getId()).with(sessao)).andExpect(status().isOk())
             .andExpect(content().string(containsString(e.getFornada().getIdentificacao()))).andExpect(content().string(containsString("16.100 tijolos")));
-        // The open load is offered again instead of a new one.
         mvc.perform(get("/producao/enforna/nova").with(sessao)).andExpect(status().isOk())
-            .andExpect(content().string(containsString(e.getFornada().getIdentificacao())))
-            .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Começar nova fornada"))));
+            .andExpect(content().string(containsString("10 de 44 linhas ocupadas"))).andExpect(content().string(containsString("cabem mais 34")));
     }
 
-    @Test void desenfornaPelaTelaEListaUnicaComValidacaoEmLote() throws Exception {
+    @Test void desenfornaPelaTelaEListaPorDiaComValidacaoEmLote() throws Exception {
         var sessaoRegistro = autenticado(registro);
+        fornadas.abrirNova(unidade.getId(), gestor);
         var e = registrarEnforna(sessaoRegistro, 4);
         mvc.perform(get("/producao/desenforna/nova").with(sessaoRegistro)).andExpect(status().isOk()).andExpect(content().string(containsString("1ª qualidade")));
         mvc.perform(post("/producao/desenforna/nova").with(sessaoRegistro).with(csrf())
@@ -97,11 +109,19 @@ class TelasEtapasTest {
             .andExpect(status().is3xxRedirection());
         var d = desenfornas.daFornada(e.getFornada().getId()).getFirst();
         mvc.perform(get("/producao").with(sessaoRegistro)).andExpect(status().isOk())
+            .andExpect(content().string(containsString("Histórico de registros")))
             .andExpect(content().string(containsString("Enforna"))).andExpect(content().string(containsString("Desenforna")))
             .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Validar selecionados"))));
+        // "Todas" in the filters arrives as empty values and must not hide the records.
+        mvc.perform(get("/producao").param("inicio", producao.hoje().minusDays(30).toString()).param("fim", producao.hoje().toString())
+                .param("etapa", "").param("situacao", "").with(sessaoRegistro)).andExpect(status().isOk())
+            .andExpect(content().string(containsString("2 registro(s)"))).andExpect(content().string(org.hamcrest.Matchers.not(containsString("Nenhum registro neste período"))));
 
         var sessaoGestor = autenticado(gestor);
-        mvc.perform(get("/producao").param("etapa", "DESENFORNA").with(sessaoGestor)).andExpect(status().isOk())
+        // One line per day; the day's records, with the boxes to validate, are in its window.
+        mvc.perform(get("/producao").with(sessaoGestor)).andExpect(status().isOk())
+            .andExpect(content().string(containsString("Dias com lançamento"))).andExpect(content().string(containsString("1 Enforna · 1 Desenforna")))
+            .andExpect(content().string(containsString("Ver lançamentos"))).andExpect(content().string(containsString("<dialog")))
             .andExpect(content().string(containsString("Validar selecionados"))).andExpect(content().string(containsString("desenforna:" + d.getId())));
         mvc.perform(post("/producao/validar-lote").with(sessaoGestor).with(csrf()).param("ids", "enforna:" + e.getId(), "desenforna:" + d.getId()))
             .andExpect(redirectedUrl("/producao")).andExpect(flash().attribute("sucesso", "2 registro(s) validado(s)."));
@@ -111,7 +131,8 @@ class TelasEtapasTest {
         // The panel shows the validated stages: 4 lines × 1.610 in, 6.000 + 400 finished out.
         mvc.perform(get("/painel").param("unidade", unidade.getId().toString()).with(sessaoGestor)).andExpect(status().isOk())
             .andExpect(content().string(containsString("Forno no período"))).andExpect(content().string(containsString("6,44")))
-            .andExpect(content().string(containsString("6,4"))).andExpect(content().string(containsString("93%")));
+            .andExpect(content().string(containsString("6,4"))).andExpect(content().string(containsString("93%")))
+            .andExpect(content().string(containsString("Últimas fornadas"))).andExpect(content().string(containsString(e.getFornada().getIdentificacao())));
     }
 
     @Test void inventarioInicialPelaTelaUmaVezSo() throws Exception {
@@ -138,23 +159,36 @@ class TelasEtapasTest {
         mvc.perform(get(url).with(autenticado(registro))).andExpect(status().isForbidden());
     }
 
-    @Test void fornadasMostraBalancoEMarcosPorPerfil() throws Exception {
+    @Test void fornadasMostraBalancoEOGestorMarcaHorarios() throws Exception {
         var sessaoRegistro = autenticado(registro);
+        fornadas.abrirNova(unidade.getId(), gestor);
         var e = registrarEnforna(sessaoRegistro, 6);
         var f = e.getFornada();
+        // The Registro de Produção only reads: no firing times, no opening or closing.
         mvc.perform(get("/fornadas").with(sessaoRegistro)).andExpect(status().isOk())
-            .andExpect(content().string(containsString(f.getIdentificacao()))).andExpect(content().string(containsString("Registrar horário")))
-            .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Concluir esta fornada"))));
-        mvc.perform(post("/fornadas/" + f.getId() + "/marco").with(sessaoRegistro).with(csrf()).param("versao", String.valueOf(f.getVersao())).param("marco", "ENFORNA_CONCLUIDA"))
+            .andExpect(content().string(containsString(f.getIdentificacao()))).andExpect(content().string(containsString("1ª qualidade")))
+            .andExpect(content().string(containsString("Início do esquente"))).andExpect(content().string(containsString("Não marcado")))
+            .andExpect(content().string(org.hamcrest.Matchers.not(containsString(">Marcar<"))))
+            .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Abrir nova fornada"))))
+            .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Fechar esta fornada"))));
+        mvc.perform(post("/fornadas/" + f.getId() + "/marco").with(sessaoRegistro).with(csrf()).param("versao", String.valueOf(f.getVersao())).param("marco", "INICIO_ESQUENTE"))
+            .andExpect(status().isForbidden());
+
+        var sessaoGestor = autenticado(gestor);
+        mvc.perform(get("/fornadas").param("unidade", unidade.getId().toString()).with(sessaoGestor)).andExpect(status().isOk())
+            .andExpect(content().string(containsString(">Marcar<"))).andExpect(content().string(containsString("Abrir nova fornada")))
+            .andExpect(content().string(containsString("Fechar esta fornada")))
+            .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Início da queima<"))));
+        mvc.perform(post("/fornadas/" + f.getId() + "/marco").with(sessaoGestor).with(csrf()).param("versao", String.valueOf(f.getVersao())).param("marco", "INICIO_ESQUENTE"))
             .andExpect(status().is3xxRedirection()).andExpect(flash().attributeExists("sucesso"));
-        assertThat(fornadas.consultar(f.getId(), registro).isRecebendoEnforna()).isFalse();
+        assertThat(fornadas.consultar(f.getId(), gestor).getInicioEsquente()).isNotNull();
+        mvc.perform(get("/fornadas").param("unidade", unidade.getId().toString()).with(sessaoGestor)).andExpect(status().isOk())
+            .andExpect(content().string(containsString("Início da queima (estimado"))).andExpect(content().string(containsString(">Corrigir<")));
 
         var sessaoAdmin = autenticado(admin);
         mvc.perform(get("/fornadas").param("unidade", unidade.getId().toString()).with(sessaoAdmin)).andExpect(status().isOk())
-            .andExpect(content().string(containsString(f.getIdentificacao()))).andExpect(content().string(org.hamcrest.Matchers.not(containsString("Registrar horário"))));
+            .andExpect(content().string(containsString(f.getIdentificacao()))).andExpect(content().string(org.hamcrest.Matchers.not(containsString(">Corrigir<"))));
         mvc.perform(post("/fornadas/" + f.getId() + "/concluir").with(sessaoAdmin).with(csrf()).param("versao", "1")).andExpect(status().isForbidden());
-        mvc.perform(get("/producao/enforna/nova").with(autenticado(gestor))).andExpect(status().isForbidden());
-        mvc.perform(get("/fornadas").param("unidade", unidade.getId().toString()).with(autenticado(gestor))).andExpect(status().isOk())
-            .andExpect(content().string(containsString("Concluir esta fornada")));
+        mvc.perform(get("/producao/enforna/nova").with(sessaoGestor)).andExpect(status().isForbidden());
     }
 }

@@ -112,6 +112,26 @@ document.querySelectorAll("[data-enforna-item]").forEach(block => {
   update();
 });
 
+// Enforna: lines in the kiln with this entry, adding every format, against the capacity.
+const gauge = document.querySelector("[data-capacidade]");
+if (gauge) {
+  const capacity = Number(gauge.dataset.capacidade), taken = Number(gauge.dataset.ocupadas);
+  const lineInputs = [...document.querySelectorAll("[data-enforna-item] [data-linhas]")];
+  const update = () => {
+    const total = taken + lineInputs.reduce((sum, input) => sum + (Number(input.value) || 0), 0);
+    gauge.querySelector("[data-ocupacao]").textContent = total + " de " + capacity + " linhas ocupadas";
+    gauge.querySelector("[data-restantes]").textContent = total > capacity ? "passou " + (total - capacity) + " do limite" : "cabem mais " + (capacity - total);
+    gauge.classList.toggle("over", total > capacity);
+  };
+  lineInputs.forEach(input => input.addEventListener("input", update)); update();
+}
+
+// A zero already in a number field is selected on focus, so typing replaces it.
+document.querySelectorAll("input[type=number]").forEach(input => {
+  input.addEventListener("focus", () => { if (input.value === "0") input.select(); });
+  input.addEventListener("mouseup", event => { if (input.value === "0") event.preventDefault(); });
+});
+
 // Desenforna: shows 1ª + 2ª + Cru of each format.
 document.querySelectorAll("[data-desenforna-item]").forEach(block => {
   const parts = [...block.querySelectorAll("[data-soma]")], out = block.querySelector("[data-soma-total]");
@@ -120,8 +140,18 @@ document.querySelectorAll("[data-desenforna-item]").forEach(block => {
   parts.forEach(input => input.addEventListener("input", update)); update();
 });
 
-// Batch validation: "mark all" toggles the pending records of the page.
-const markAll = document.getElementById("marcar-todos");
-if (markAll) markAll.addEventListener("change", () => document.querySelectorAll("[data-lote]").forEach(box => { box.checked = markAll.checked; }));
+// Review by day: each day's records open in a window on the same page.
+document.querySelectorAll("[data-open-dialog]").forEach(button => button.addEventListener("click", () => {
+  document.getElementById(button.dataset.openDialog).showModal();
+}));
+document.querySelectorAll("dialog").forEach(dialog => {
+  dialog.querySelectorAll("[data-close-dialog]").forEach(button => button.addEventListener("click", () => dialog.close()));
+  // A click on the dimmed area outside the window closes it.
+  dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); });
+});
+
+// Batch validation: "mark all" toggles the pending records of its own form.
+document.querySelectorAll("[data-marcar-todos]").forEach(markAll => markAll.addEventListener("change", () =>
+  markAll.form.querySelectorAll("[data-lote]").forEach(box => { box.checked = markAll.checked; })));
 
 document.querySelectorAll("[data-auto-submit]").forEach(select => select.addEventListener("change", () => select.form.submit()));

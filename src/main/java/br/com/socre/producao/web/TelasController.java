@@ -15,10 +15,16 @@ public class TelasController {
     @GetMapping("/login") String login() { return "login"; }
     @GetMapping("/") String inicio(@AuthenticationPrincipal UsuarioAutenticado p) {
         return switch (p.perfil()) {
-            case REGISTRO_PRODUCAO, GESTOR_PRODUCAO -> "redirect:/producao";
+            case REGISTRO_PRODUCAO -> "redirect:/lancamentos";
+            case GESTOR_PRODUCAO -> "redirect:/producao";
             case GESTOR_GERAL -> "redirect:/painel";
             case ADMINISTRADOR -> "redirect:/admin";
         };
+    }
+    /** The Registro de Produção starts here: only the three stages to register; the history has its own page. */
+    @GetMapping("/lancamentos") String lancamentos(@AuthenticationPrincipal UsuarioAutenticado p, Model model) {
+        model.addAttribute("unidade", unidades.findById(p.unidadeId()).orElseThrow());
+        return "producao/lancamentos";
     }
     @GetMapping("/admin") String admin(Model model) {
         model.addAttribute("usuarios", usuarios.findAllByOrderByNome());

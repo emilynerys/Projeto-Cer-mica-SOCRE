@@ -29,15 +29,11 @@ public class EtapasController {
     @GetMapping("/enforna/nova") String novaEnforna(@AuthenticationPrincipal UsuarioAutenticado p, Model model) {
         var f = new EnfornaForm(); f.setData(producao.hoje()); f.setChaveEnvio(UUID.randomUUID());
         producao.formatosAtivos().forEach(formato -> f.getItens().put(formato.getId(), new EnfornaForm.Item(0, formato.getTijolosPorLinha(), null)));
-        var abertas = fornadas.paraEnforna(p.unidadeId());
-        if (abertas.size() == 1) f.setIdFornada(abertas.getFirst().getId());
         model.addAttribute("form", f); prepararEnforna(model, p, null);
         return "producao/enforna-form";
     }
     @PostMapping("/enforna/nova") String criarEnforna(@Valid @ModelAttribute("form") EnfornaForm f, BindingResult errors,
             @AuthenticationPrincipal UsuarioAutenticado p, Model model, RedirectAttributes flash) {
-        // An empty choice in the load list means "Nova fornada".
-        f.setNovaFornada(f.getIdFornada() == null);
         if (!errors.hasErrors()) {
             try {
                 var criados = enfornas.criar(p, f);
@@ -85,8 +81,12 @@ public class EtapasController {
         model.addAttribute("formatos", original == null ? producao.formatosAtivos() : List.of(original.getFormato()));
         var unidade = original == null ? unidades.findById(p.unidadeId()).orElseThrow() : original.getUnidade();
         model.addAttribute("unidade", unidade);
-        model.addAttribute("fornadasDisponiveis", original == null ? fornadas.paraEnforna(unidade.getId()) : List.of(original.getFornada()));
-        model.addAttribute("podeAbrirNova", original == null && fornadas.podeAbrirNova(unidade.getId()));
+        // A new Enforna goes to the load the Gestor opened; the screen shows how many lines still fit in the kiln.
+        var fornada = original == null ? fornadas.paraEnforna(unidade.getId()).orElse(null) : original.getFornada();
+        if (original == null && model.getAttribute("form") instanceof EnfornaForm f) f.setIdFornada(fornada == null ? null : fornada.getId());
+        model.addAttribute("fornada", fornada);
+        model.addAttribute("capacidade", EnfornaService.capacidade(unidade));
+        model.addAttribute("ocupadas", enfornas.linhasOcupadas(fornada) - (original == null ? 0 : original.getLinhas()));
         model.addAttribute("motivosCorrecao", producao.motivos(Motivo.Tipo.CORRECAO));
         model.addAttribute("hoje", producao.hoje());
     }

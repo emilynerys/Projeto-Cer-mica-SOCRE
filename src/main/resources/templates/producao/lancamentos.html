@@ -1,0 +1,11 @@
+<!DOCTYPE html><html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"><head th:replace="~{fragments/layout :: head('Lançamentos')}"></head>
+<body><header th:replace="~{fragments/layout :: header}"></header><main class="container narrow">
+  <div class="page-heading"><div><p class="eyebrow" th:text="${unidade.nome}"></p><h1>Lançamentos</h1><p class="muted">Escolha a etapa que você vai registrar.</p></div></div>
+  <div class="notice success" role="status" th:if="${sucesso}" th:text="${sucesso}"></div>
+  <nav class="launch-grid" aria-label="Registrar produção">
+    <a class="launch-card" th:href="@{/producao/maromba}"><span class="launch-plus" aria-hidden="true">+</span><strong>Maromba</strong><small>Tijolos que saíram da maromba no dia</small></a>
+    <a class="launch-card" th:href="@{/producao/enforna/nova}"><span class="launch-plus" aria-hidden="true">+</span><strong>Enforna</strong><small>Linhas que entraram no forno</small></a>
+    <a class="launch-card" th:href="@{/producao/desenforna/nova}"><span class="launch-plus" aria-hidden="true">+</span><strong>Desenforna</strong><small>Linhas que saíram do forno, por qualidade</small></a>
+  </nav>
+  <p class="field-help">Para conferir ou corrigir o que já foi lançado, abra o <a th:href="@{/producao}">Histórico de registros</a>.</p>
+</main><footer th:replace="~{fragments/layout :: footer}"></footer></body></html>

@@ -45,6 +45,7 @@ public class DesenfornaService extends EtapaService<Desenforna> {
                 throw new RegraNegocioException("Este envio já foi usado com outros dados. Consulte seus registros e abra um novo formulário.");
             return anteriores;
         }
+        conferirLinhas(linhas, fornada, 0);
         if (!f.isConfirmarAvisos()) {
             var avisos = avisos(linhas, fornada, 0);
             if (!avisos.isEmpty()) throw new AvisosPendentesException(avisos);
@@ -66,6 +67,7 @@ public class DesenfornaService extends EtapaService<Desenforna> {
         apoio.conferirData(d.getUnidade(), f.getData());
         var l = linha(d.getFormato(), f.getItens().get(d.getFormato().getId()));
         if (l == null) throw new RegraNegocioException("Informe a Desenforna de " + d.getFormato().getNome() + ". Para apagar o registro, use o cancelamento.");
+        conferirLinhas(List.of(l), d.getFornada(), d.getLinhas());
         if (!f.isConfirmarAvisos()) {
             var avisos = avisos(List.of(l), d.getFornada(), d.getLinhas());
             if (!avisos.isEmpty()) throw new AvisosPendentesException(avisos);
@@ -88,7 +90,17 @@ public class DesenfornaService extends EtapaService<Desenforna> {
         return new Linha(formato, linhas, primeira, segunda, cru);
     }
     private static int valor(Integer v) { return v == null ? 0 : v; }
-    /** RN14: more bricks than lines × reference, or more lines taken out than were put into the load. Never blocks. */
+    /** RN14: no more lines come out than went into the load; a correction that does not add lines is always accepted. */
+    private void conferirLinhas(List<Linha> linhas, Fornada fornada, int linhasJaContadas) {
+        int novas = linhas.stream().mapToInt(Linha::linhas).sum() - linhasJaContadas;
+        var balanco = fornadaService.balanco(fornada);
+        int restantes = balanco.linhasEnfornadas() - balanco.linhasDesenfornadas();
+        if (novas > 0 && novas > restantes)
+            throw new RegraNegocioException("A " + fornada.getIdentificacao() + " tem " + balanco.linhasEnfornadas() + " linhas enfornadas e "
+                + balanco.linhasDesenfornadas() + " já desenfornadas. Ainda podem sair " + Math.max(0, restantes)
+                + " linhas. Se a Enforna foi lançada errada, peça a correção dela primeiro.");
+    }
+    /** RN14: more bricks than lines × reference ask for confirmation; a saved record above the lines put in is shown to the Gestor. */
     private List<String> avisos(List<Linha> linhas, Fornada fornada, int linhasJaContadas) {
         var avisos = new ArrayList<String>();
         var n = NumberFormat.getIntegerInstance(Locale.forLanguageTag("pt-BR"));

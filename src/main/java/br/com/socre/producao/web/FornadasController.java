@@ -31,13 +31,22 @@ public class FornadasController {
                 .map(f -> fornadas.balanco(f.getId(), p)).toList();
             model.addAttribute("emAndamento", emAndamento); model.addAttribute("concluidas", concluidas);
         }
-        model.addAttribute("podeRegistrarMarco", p.perfil() == Perfil.REGISTRO_PRODUCAO || p.perfil() == Perfil.GESTOR_PRODUCAO);
-        model.addAttribute("podeConcluir", p.perfil() == Perfil.GESTOR_PRODUCAO);
-        model.addAttribute("marcos", Fornada.Marco.values());
+        // RN08: the Gestor de Produção opens, closes and marks the firing times; the other profiles only read.
+        boolean gestor = p.perfil() == Perfil.GESTOR_PRODUCAO;
+        model.addAttribute("podeRegistrarMarco", gestor); model.addAttribute("podeConcluir", gestor);
+        model.addAttribute("podeAbrir", gestor && escolhida != null && fornadas.podeAbrirNova(escolhida));
+        model.addAttribute("marcos", Fornada.Marco.manuais());
         model.addAttribute("agora", LocalDateTime.now(RegistroApoio.FUSO).withSecond(0).withNano(0));
         return "fornadas";
     }
-    // RN08 "Enforna concluída" and RN21 firing times; an empty time means now.
+    @PostMapping("/abrir") String abrir(@RequestParam UUID unidade, @AuthenticationPrincipal UsuarioAutenticado p, RedirectAttributes flash) {
+        try {
+            var f = fornadas.abrirNova(unidade, p);
+            flash.addFlashAttribute("sucesso", f.getIdentificacao() + " aberta. A partir de agora, as Enfornas entram nela.");
+        } catch (RegraNegocioException e) { flash.addFlashAttribute("falha", e.getMessage()); }
+        return "redirect:/fornadas?unidade=" + unidade;
+    }
+    // RN21 firing times; an empty time means now.
     @PostMapping("/{id}/marco") String marco(@PathVariable UUID id, @RequestParam long versao, @RequestParam Fornada.Marco marco,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime quando,
             @AuthenticationPrincipal UsuarioAutenticado p, RedirectAttributes flash) {
@@ -52,7 +61,7 @@ public class FornadasController {
         var f = fornadas.consultar(id, p);
         try {
             var b = fornadas.concluir(id, p, versao);
-            flash.addFlashAttribute("sucesso", f.getIdentificacao() + " concluída. Diferença entre desenfornado e enfornado: "
+            flash.addFlashAttribute("sucesso", f.getIdentificacao() + " fechada. Diferença entre desenfornado e enfornado: "
                 + new TemplateAdvice.Formatos().inteiro(b.diferenca()) + " tijolos.");
         } catch (RegraNegocioException e) { flash.addFlashAttribute("falha", e.getMessage()); }
         catch (OptimisticLockingFailureException e) { flash.addFlashAttribute("falha", "A fornada mudou desde que você abriu a tela. Confira e tente de novo."); }

@@ -1,6 +1,6 @@
 <!DOCTYPE html><html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"><head th:replace="~{fragments/layout :: head('Registrar Desenforna')}"></head>
 <body><header th:replace="~{fragments/layout :: header}"></header><main class="container narrow">
-  <a class="back-link" th:href="${registro == null} ? @{/producao} : @{/producao/desenforna/{id}(id=${registro.id})}">← Voltar</a>
+  <a class="back-link" th:href="${registro == null} ? @{/lancamentos} : @{/producao/desenforna/{id}(id=${registro.id})}">← Voltar</a>
   <div class="page-heading"><div><p class="eyebrow" th:text="${unidade.nome}"></p><h1 th:text="${registro == null ? 'Registrar Desenforna' : 'Corrigir Desenforna de ' + registro.formato.nome}"></h1><p class="muted" th:text="${registro == null ? 'Informe as linhas que saíram do forno e quantos tijolos de cada qualidade.' : 'Cada formato tem um registro próprio. Aqui você corrige só este.'}"></p></div></div>
   <form th:action="${registro == null} ? @{/producao/desenforna/nova} : @{/producao/desenforna/{id}/editar(id=${registro.id})}" th:object="${form}" method="post" class="panel form-panel stack">
     <input type="hidden" th:field="*{chaveEnvio}"><input type="hidden" th:field="*{versao}">
