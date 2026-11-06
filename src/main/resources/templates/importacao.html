@@ -1,0 +1,34 @@
+<!DOCTYPE html><html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"><head th:replace="~{fragments/layout :: head('Importar lançamentos')}"></head>
+<body><header th:replace="~{fragments/layout :: header}"></header><main class="container narrow">
+  <a class="back-link" th:href="@{/admin}">← Voltar à administração</a>
+  <div class="page-heading"><div><p class="eyebrow">Carga histórica</p><h1>Importar lançamentos</h1><p class="muted">Os lançamentos feitos entre o inventário inicial e o início do uso do sistema. Entram já validados, e a importação é feita uma vez só.</p></div>
+    <form method="get" th:action="@{/admin/importacao}" class="inline-form" th:if="${unidades.size() > 1}"><label>Unidade<select name="unidade" data-auto-submit><option th:each="u : ${unidades}" th:value="${u.id}" th:text="${u.nome}" th:selected="${u.id == unidadeSelecionada}"></option></select></label><noscript><button class="button secondary" type="submit">Ver</button></noscript></form>
+  </div>
+  <div class="notice success" role="status" th:if="${sucesso}" th:text="${sucesso}"></div>
+
+  <section class="panel form-panel" th:if="${jaImportado}"><div class="section-heading flush"><h2>Importação feita</h2><span class="badge validated">Concluída</span></div><p class="field-help">Os lançamentos importados aparecem na tela Lançamentos e nos Indicadores. Para corrigir algum deles, o Gestor de Produção abre o registro e corrige com motivo.</p></section>
+
+  <th:block th:unless="${jaImportado}">
+  <section class="panel form-panel stack">
+    <h2>Como montar o arquivo</h2>
+    <p class="field-help">Um arquivo de texto ou CSV, com as colunas separadas por ponto e vírgula e uma linha por etapa, formato e dia. A primeira linha é sempre esta:</p>
+    <pre class="import-sample" th:text="${cabecalho}"></pre>
+    <p class="field-help">Exemplo:</p>
+    <pre class="import-sample">MAROMBA;14/08/2026;;;8 furos;;;16000;;;
+ENFORNA;14/08/2026;08/2026;2;8 furos;10;1610;16100;;;
+DESENFORNA;14/08/2026;08/2026;1;8 furos;7;;;9000;500;40</pre>
+    <p class="field-help">Na Enforna, se os tijolos por linha ou a quantidade ficarem em branco, o sistema usa a referência do formato. Depois da importação, só as duas fornadas mais recentes ficam em andamento.</p>
+  </section>
+
+  <div class="notice error" role="alert" th:if="${conferencia != null and !conferencia.erros.empty}"><strong>Corrija antes de importar. Nada foi salvo.</strong><ul class="import-errors"><li th:each="e : ${conferencia.erros}" th:text="${e}"></li><li th:if="${conferencia.errosOcultos > 0}" th:text="${'E mais ' + conferencia.errosOcultos + ' erro(s).'}"></li></ul></div>
+  <div class="notice success" role="status" th:if="${conferencia != null and conferencia.podeImportar()}" data-importacao-ok><strong th:text="${conferencia.total() + ' lançamento(s) prontos para importar:'}"></strong> <span th:text="${conferencia.maromba + ' de Maromba, ' + conferencia.enforna + ' de Enforna e ' + conferencia.desenforna + ' de Desenforna.'}"></span><p th:unless="${conferencia.fornadasNovas.empty}" th:text="${'Fornadas que serão criadas: ' + #strings.listJoin(conferencia.fornadasNovas, ', ') + '.'}"></p></div>
+
+  <form method="post" th:action="@{/admin/importacao/conferir}" class="panel form-panel stack" data-importacao>
+    <input type="hidden" name="unidade" th:value="${unidadeSelecionada}">
+    <label hidden data-arquivo-campo>Escolher arquivo<input type="file" accept=".csv,.txt,text/csv,text/plain" data-arquivo></label>
+    <label for="texto">Conteúdo do arquivo<textarea id="texto" name="texto" rows="10" spellcheck="false" required th:text="${texto}" data-arquivo-texto></textarea></label>
+    <div class="actions"><button class="button secondary" type="submit">Conferir arquivo</button>
+      <button class="button primary" type="submit" th:if="${conferencia != null and conferencia.podeImportar()}" th:formaction="@{/admin/importacao}" th:text="${'Importar ' + conferencia.total() + ' lançamento(s)'}"></button></div>
+  </form>
+  </th:block>
+</main><footer th:replace="~{fragments/layout :: footer}"></footer></body></html>

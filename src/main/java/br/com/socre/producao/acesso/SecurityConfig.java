@@ -36,6 +36,10 @@ public class SecurityConfig {
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/fornadas/**").hasAnyRole("REGISTRO_PRODUCAO", "GESTOR_PRODUCAO", "GESTOR_GERAL", "ADMINISTRADOR")
                 // RN08: only the Gestor de Produção opens and closes loads and marks the firing times.
                 .requestMatchers("/fornadas/**").hasRole("GESTOR_PRODUCAO")
+                // Status do Forno: every profile reads the kiln map; only the two gestores type the operator's paper.
+                .requestMatchers("/status-forno/novo").hasAnyRole("GESTOR_PRODUCAO", "GESTOR_GERAL")
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/status-forno").hasAnyRole("REGISTRO_PRODUCAO", "GESTOR_PRODUCAO", "GESTOR_GERAL", "ADMINISTRADOR")
+                .requestMatchers("/status-forno/**").hasAnyRole("GESTOR_PRODUCAO", "GESTOR_GERAL")
                 // RN05: the Administrador reads production data but never writes it.
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/producao/**").hasAnyRole("REGISTRO_PRODUCAO", "GESTOR_PRODUCAO", "GESTOR_GERAL", "ADMINISTRADOR")
                 .requestMatchers("/producao/**").hasAnyRole("REGISTRO_PRODUCAO", "GESTOR_PRODUCAO", "GESTOR_GERAL")

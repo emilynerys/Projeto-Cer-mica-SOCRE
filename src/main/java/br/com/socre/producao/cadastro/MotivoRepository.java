@@ -3,4 +3,7 @@ import java.util.*;
 import org.springframework.data.jpa.repository.JpaRepository;
 public interface MotivoRepository extends JpaRepository<Motivo, UUID> {
     List<Motivo> findByTipoAndAtivoTrueOrderByDescricao(Motivo.Tipo tipo);
+    List<Motivo> findAllByOrderByTipoAscDescricaoAsc();
+    boolean existsByTipoAndDescricaoIgnoreCase(Motivo.Tipo tipo, String descricao);
+    long countByTipoAndAtivoTrue(Motivo.Tipo tipo);
 }

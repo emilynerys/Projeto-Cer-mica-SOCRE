@@ -19,6 +19,12 @@ public class Usuario {
         this.id = id; this.nome = nome; this.email = email.toLowerCase(Locale.ROOT);
         this.senhaHash = senhaHash; this.perfil = perfil; this.unidade = unidade; this.ativo = true;
     }
+    public void editar(String nome, String email, Perfil perfil, Unidade unidade, boolean ativo) {
+        // A new access version ends the sessions open with the old profile or status.
+        if (perfil != this.perfil || ativo != this.ativo) versaoAcesso++;
+        this.nome = nome; this.email = email.toLowerCase(Locale.ROOT); this.perfil = perfil; this.unidade = unidade; this.ativo = ativo;
+    }
+    public void redefinirSenha(String senhaHash) { this.senhaHash = senhaHash; versaoAcesso++; }
     public UUID getId() { return id; }
     public String getNome() { return nome; }
     public String getEmail() { return email; }

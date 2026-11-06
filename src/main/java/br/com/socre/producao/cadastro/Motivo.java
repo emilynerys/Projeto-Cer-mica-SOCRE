@@ -13,6 +13,8 @@ public class Motivo {
     @Column(name = "exige_texto", nullable = false) private boolean exigeTexto;
     @Column(nullable = false) private boolean ativo;
     protected Motivo() {}
+    public Motivo(UUID id, Tipo tipo, String descricao, boolean exigeTexto) { this.id = id; this.tipo = tipo; this.descricao = descricao; this.exigeTexto = exigeTexto; this.ativo = true; }
+    public void alternarAtivo() { ativo = !ativo; }
     public UUID getId() { return id; }
     public Tipo getTipo() { return tipo; }
     public String getDescricao() { return descricao; }

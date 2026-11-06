@@ -13,8 +13,12 @@ public class Formato {
     @Column(name = "tijolos_por_linha", nullable = false) private int tijolosPorLinha;
     @Column(nullable = false) private boolean ativo;
     protected Formato() {}
+    public Formato(UUID id, String nome, int tijolosPorLinha) { this.id = id; this.nome = nome; this.tijolosPorLinha = tijolosPorLinha; this.ativo = true; }
+    public void editar(String nome, int tijolosPorLinha, boolean ativo) { this.nome = nome; this.tijolosPorLinha = tijolosPorLinha; this.ativo = ativo; }
     public UUID getId() { return id; }
     public String getNome() { return nome; }
+    /** Short name used by the factory on paper: "8 furos" is "8F". */
+    public String getSigla() { return nome.matches("\\d+ furos") ? nome.replace(" furos", "F") : nome; }
     public int getTijolosPorLinha() { return tijolosPorLinha; }
     public boolean isAtivo() { return ativo; }
 }

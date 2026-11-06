@@ -37,6 +37,7 @@ public class EventoAuditoria {
             case "IMPORTACAO" -> "Registro importado";
             case "MARCO" -> "Horário da queima registrado";
             case "CONCLUSAO" -> "Fornada concluída";
+            case "SENHA_REDEFINIDA" -> "Senha redefinida";
             default -> "Registro validado";
         };
     }

@@ -86,6 +86,44 @@ public class ProducaoController {
         if (!registroProducao) model.addAttribute("dias", agruparPorDia(linhas));
         return "producao/lista";
     }
+    /** RF21: the list as a spreadsheet, with the same filters and the same access; the numbers go apart, in bricks. */
+    @GetMapping("/exportar.csv") ResponseEntity<byte[]> exportar(@AuthenticationPrincipal UsuarioAutenticado p,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fim,
+            @RequestParam(required = false) Situacao situacao, @RequestParam(required = false) String etapa) {
+        if (inicio == null) inicio = service.hoje().minusDays(14);
+        if (fim == null) fim = service.hoje();
+        if (etapa != null && etapa.isBlank()) etapa = null;
+        validarPeriodo(inicio, fim);
+        boolean registroProducao = p.perfil() == Perfil.REGISTRO_PRODUCAO;
+        UUID autor = registroProducao ? p.id() : null, unidade = registroProducao ? p.unidadeId() : null;
+        var registros = new ArrayList<RegistroEtapa>();
+        if (etapa == null || etapa.equals("MAROMBA")) registros.addAll(marombas.listar(inicio, fim, autor, unidade, situacao));
+        if (etapa == null || etapa.equals("ENFORNA")) registros.addAll(enfornas.consultar(inicio, fim, autor, unidade, situacao));
+        if (etapa == null || etapa.equals("DESENFORNA")) registros.addAll(desenfornas.consultar(inicio, fim, autor, unidade, situacao));
+        registros.sort(Comparator.comparing(RegistroEtapa::getData).thenComparing((RegistroEtapa r) -> ETAPAS.indexOf(r.getEtapa())).thenComparing(r -> r.getFormato().getNome()));
+        var csv = new StringBuilder("\uFEFFData;Etapa;Unidade;Fornada;Formato;Linhas;Tijolos por linha;Quantidade;1ª qualidade;2ª qualidade;Cru;Situação;Origem;Registrado por\r\n");
+        for (var r : registros) {
+            String fornada = "", linhas = "", porLinha = "", quantidade = "", primeira = "", segunda = "", cru = "";
+            switch (r) {
+                case Maromba m -> quantidade = String.valueOf(m.getQuantidade());
+                case Enforna e -> { fornada = e.getFornada().getIdentificacao(); linhas = String.valueOf(e.getLinhas()); porLinha = String.valueOf(e.getTijolosPorLinha()); quantidade = String.valueOf(e.getQuantidade()); }
+                case Desenforna d -> { fornada = d.getFornada().getIdentificacao(); linhas = String.valueOf(d.getLinhas()); quantidade = String.valueOf(d.getTotal()); primeira = String.valueOf(d.getPrimeira()); segunda = String.valueOf(d.getSegunda()); cru = String.valueOf(d.getCru()); }
+                default -> throw new IllegalStateException();
+            }
+            csv.append(String.join(";", celula(FMT.data(r.getData())), celula(r.getEtapa()), celula(r.getUnidade().getNome()), celula(fornada), celula(r.getFormato().getNome()),
+                linhas, porLinha, quantidade, primeira, segunda, cru, celula(r.getSituacao().getDescricao()), r.getOrigem() == Origem.IMPORTADO ? "Importado" : "Digitado",
+                celula(r.getAutor().getNome()))).append("\r\n");
+        }
+        var arquivo = ContentDisposition.attachment().filename("lancamentos-" + inicio + "-a-" + fim + ".csv").build();
+        return ResponseEntity.ok().contentType(new MediaType("text", "csv", java.nio.charset.StandardCharsets.UTF_8)).header(HttpHeaders.CONTENT_DISPOSITION, arquivo.toString())
+            .body(csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+    /** Quotes what would break the column, and keeps a name starting with = or + from running as a spreadsheet formula. */
+    private static String celula(String valor) {
+        var v = valor.matches("^[=+\\-@].*") ? "'" + valor : valor;
+        return v.contains(";") || v.contains("\"") || v.contains("\n") ? "\"" + v.replace("\"", "\"\"") + "\"" : v;
+    }
     private static List<Dia> agruparPorDia(List<Linha> linhas) {
         var grupos = new LinkedHashMap<String, List<Linha>>();
         for (var l : linhas) grupos.computeIfAbsent(l.data() + "|" + l.unidade(), k -> new ArrayList<>()).add(l);

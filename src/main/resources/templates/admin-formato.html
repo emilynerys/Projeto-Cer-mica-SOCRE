@@ -1,0 +1,13 @@
+<!DOCTYPE html><html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"><head th:replace="~{fragments/layout :: head(${formato == null ? 'Novo formato' : 'Editar formato'})}"></head>
+<body><header th:replace="~{fragments/layout :: header}"></header><main class="container narrow">
+  <a class="back-link" th:href="@{/admin}">← Voltar à administração</a>
+  <div class="page-heading"><div><p class="eyebrow">Administração</p><h1 th:text="${formato == null ? 'Novo formato' : 'Editar formato'}"></h1><p class="muted">A mudança vale para os próximos lançamentos. Os que já foram feitos não mudam.</p></div></div>
+  <div class="notice error" role="alert" th:if="${mensagemErro}" th:text="${mensagemErro}"></div>
+  <form method="post" th:action="${formato == null} ? @{/admin/formatos} : @{/admin/formatos/{id}(id=${formato.id})}" class="panel form-panel stack">
+    <label for="nome">Nome<input type="text" id="nome" name="nome" th:value="${form.nome}" maxlength="60" placeholder="Ex.: 8 furos" required></label>
+    <label for="tijolosPorLinha">Tijolos por linha<input type="number" id="tijolosPorLinha" name="tijolosPorLinha" th:value="${form.tijolosPorLinha}" min="1" step="1" inputmode="numeric" required></label>
+    <label class="check-line" th:if="${formato != null}"><input type="checkbox" name="ativo" value="true" th:checked="${form.ativo}"> Formato ativo <span class="field-help">Formato inativo sai das telas de lançamento, mas o que já foi registrado continua nos Indicadores.</span></label>
+    <input type="hidden" name="ativo" value="true" th:if="${formato == null}">
+    <div class="actions"><button class="button primary" type="submit" th:text="${formato == null ? 'Criar formato' : 'Salvar alterações'}"></button><a class="button secondary" th:href="@{/admin}">Cancelar</a></div>
+  </form>
+</main><footer th:replace="~{fragments/layout :: footer}"></footer></body></html>

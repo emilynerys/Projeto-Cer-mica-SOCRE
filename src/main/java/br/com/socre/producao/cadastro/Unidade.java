@@ -11,6 +11,7 @@ public class Unidade {
     @Column(nullable = false) private boolean ativa;
     protected Unidade() {}
     public Unidade(UUID id, String nome, int linhasForno) { this.id = id; this.nome = nome; this.linhasForno = linhasForno; this.ativa = true; }
+    public void alterarLinhasForno(int linhas) { linhasForno = linhas; }
     public UUID getId() { return id; }
     public String getNome() { return nome; }
     public int getLinhasForno() { return linhasForno; }

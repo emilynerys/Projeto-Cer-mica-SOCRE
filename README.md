@@ -14,7 +14,7 @@ Aplicação web desenvolvida para um TCC, destinada ao registro, à conferência
 - Formulários responsivos e rascunho na mesma aba do navegador em caso de falha de conexão.
 - Sessões no PostgreSQL: Registro de Produção continua conectado enquanto usar o sistema ao menos a cada 3 dias; demais perfis entram de novo 15 dias após o login.
 
-Administração possui apenas consulta dos usuários/unidades de demonstração nesta entrega. Cadastro e redefinição de senha, fornadas, Enforna, Desenforna, correção após validação, relatórios e publicação estão pendentes. O ambiente atual é local e não está pronto para dados reais.
+O Administrador cadastra usuários, redefine senhas, mantém formatos, capacidade do forno e motivos, informa o inventário inicial e importa a carga histórica. O cadastro de unidades ficou para depois, porque o piloto é só em Carolina.
 
 ## Tecnologias e requisitos locais
 

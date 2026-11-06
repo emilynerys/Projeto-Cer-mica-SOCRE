@@ -10,6 +10,8 @@ public interface DesenfornaRepository extends JpaRepository<Desenforna, UUID> {
     boolean existeAtivo(UUID fornada, UUID formato, LocalDate data);
     @Query("select d from Desenforna d where d.fornada.id = :fornada and d.situacao <> br.com.socre.producao.producao.Situacao.CANCELADO")
     List<Desenforna> daFornada(UUID fornada);
+    @Query("select count(d) > 0 from Desenforna d where d.fornada.unidade.id = :unidade and d.origem = br.com.socre.producao.producao.Origem.IMPORTADO")
+    boolean existeImportado(UUID unidade);
     @Query("select d from Desenforna d where d.data between :inicio and :fim and (:autor is null or d.autor.id = :autor) and (:unidade is null or d.fornada.unidade.id = :unidade) and (:situacao is null or d.situacao = :situacao)")
     List<Desenforna> consultar(LocalDate inicio, LocalDate fim, UUID autor, UUID unidade, Situacao situacao);
 }

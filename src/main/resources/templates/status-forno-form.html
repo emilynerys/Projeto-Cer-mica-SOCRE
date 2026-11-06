@@ -1,0 +1,57 @@
+<!DOCTYPE html><html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"><head th:replace="~{fragments/layout :: head('Lançar status do forno')}"></head>
+<body><header th:replace="~{fragments/layout :: header}"></header><main class="container">
+  <a class="back-link" th:href="@{/status-forno(unidade=${unidadeSelecionada})}">← Voltar ao Status do Forno</a>
+  <div class="page-heading"><div><p class="eyebrow">Forno</p><h1>Lançar status do forno</h1><p class="muted">Passe para cá o papel do forneiro. A tela já vem com o último status: mude só as linhas que mudaram.</p></div>
+    <form method="get" th:action="@{/status-forno/novo}" class="inline-form" th:if="${unidades.size() > 1}"><label>Unidade<select name="unidade" data-auto-submit><option th:each="u : ${unidades}" th:value="${u.id}" th:text="${u.nome}" th:selected="${u.id == unidadeSelecionada}"></option></select></label><noscript><button class="button secondary" type="submit">Ver</button></noscript></form>
+  </div>
+  <div class="notice error" role="alert" th:if="${mensagemErro}" th:text="${mensagemErro}"></div>
+
+  <form th:if="${unidadeSelecionada != null}" method="post" th:action="@{/status-forno}" class="stack" data-status-forno>
+    <input type="hidden" name="idUnidade" th:value="${unidadeSelecionada}">
+    <section class="panel form-panel"><div class="format-blocks">
+      <label for="dataHora">Data e hora do papel<input type="datetime-local" id="dataHora" name="dataHora" th:value="${form.dataHora}" th:max="${agora}" required></label>
+      <label for="observacao"><span>Observação <span class="muted">(opcional)</span></span><input type="text" id="observacao" name="observacao" th:value="${form.observacao}" maxlength="300" placeholder="Ex.: esquente iniciado às 12h de domingo"></label>
+    </div></section>
+
+    <section class="panel form-panel kiln-fire" hidden data-fogo>
+      <div class="actions"><button type="button" class="button secondary" data-fogo-andar>O fogo andou</button><button type="button" class="button secondary" hidden data-fogo-desfazer>Desfazer</button></div>
+      <p class="field-help" role="status" data-fogo-msg>A linha em Queima vira Assado e a próxima vira Queima. Clique uma vez para cada linha que o fogo andou, confira e salve.</p>
+    </section>
+
+    <fieldset class="panel form-panel kiln-fill" hidden data-preencher>
+      <legend>Preencher várias linhas de uma vez</legend>
+      <div class="kiln-fill-grid">
+        <label>Da linha<input type="number" min="1" th:max="${totalLinhas}" step="1" inputmode="numeric" data-de></label>
+        <label>Até a linha<input type="number" min="1" th:max="${totalLinhas}" step="1" inputmode="numeric" data-ate></label>
+        <label>Tijolo<select data-tijolo><option value="">V · vazio</option><option th:each="f : ${formatos}" th:value="${f.id}" th:text="${f.sigla}"></option></select></label>
+        <label>Status<select data-estado-lote><option value="">—</option><option th:each="e : ${estados}" th:value="${e}" th:text="${e.letra + ' · ' + e.descricao}"></option></select></label>
+        <button type="button" class="button secondary" data-aplicar>Aplicar</button>
+      </div>
+      <p class="field-help" role="status" data-preencher-msg>Ex.: da linha 2 até a 37, 8F, Esquente. Depois ajuste uma linha ou outra no mapa.</p>
+    </fieldset>
+
+    <section class="panel kiln-map kiln-edit table-wrap"><table>
+      <caption class="sr-only">Linhas do forno: lado esquerdo e lado direito</caption>
+      <thead><tr><th colspan="3" scope="colgroup">Esquerda</th><th colspan="3" scope="colgroup" class="kiln-side">Direita</th></tr>
+        <tr><th scope="col">Status</th><th scope="col">Tijolo</th><th scope="col">Linha</th><th scope="col" class="kiln-side">Linha</th><th scope="col">Tijolo</th><th scope="col">Status</th></tr></thead>
+      <tbody><tr th:each="f : ${fileiras}">
+        <th:block th:with="c=${f.esquerda}"><th:block th:if="${c != null}">
+          <td class="kiln-state" th:attr="data-estado=${c.estado}"><select th:name="|linhas[${c.linha}].estado|" th:attr="aria-label=|Linha ${c.linha}: status|" data-linha-estado>
+            <option value="">—</option><option th:each="e : ${estados}" th:value="${e}" th:text="${e.letra}" th:title="${e.descricao}" th:selected="${e == c.estado}"></option></select></td>
+          <td><select th:name="|linhas[${c.linha}].idFormato|" th:attr="aria-label=|Linha ${c.linha}: tijolo|" data-linha-tijolo>
+            <option value="">V</option><option th:each="fo : ${formatos}" th:value="${fo.id}" th:text="${fo.sigla}" th:selected="${c.formato != null and fo.id == c.formato.id}"></option></select></td>
+          <th scope="row" class="kiln-line" th:text="${c.linha}"></th></th:block>
+          <td th:if="${c == null}" colspan="3"></td></th:block>
+        <th:block th:with="c=${f.direita}">
+          <th scope="row" class="kiln-line kiln-side" th:text="${c.linha}"></th>
+          <td><select th:name="|linhas[${c.linha}].idFormato|" th:attr="aria-label=|Linha ${c.linha}: tijolo|" data-linha-tijolo>
+            <option value="">V</option><option th:each="fo : ${formatos}" th:value="${fo.id}" th:text="${fo.sigla}" th:selected="${c.formato != null and fo.id == c.formato.id}"></option></select></td>
+          <td class="kiln-state" th:attr="data-estado=${c.estado}"><select th:name="|linhas[${c.linha}].estado|" th:attr="aria-label=|Linha ${c.linha}: status|" data-linha-estado>
+            <option value="">—</option><option th:each="e : ${estados}" th:value="${e}" th:text="${e.letra}" th:title="${e.descricao}" th:selected="${e == c.estado}"></option></select></td></th:block>
+      </tr></tbody>
+    </table></section>
+    <p class="field-help">Linha vazia: tijolo V e status —. E = Esquente · Q = Queima · A = Assado · C = Cru · D = Danificado. O resumo por formato é calculado ao salvar.</p>
+
+    <div class="actions"><button class="button primary" type="submit">Salvar status</button><a class="button secondary" th:href="@{/status-forno(unidade=${unidadeSelecionada})}">Cancelar</a></div>
+  </form>
+</main><footer th:replace="~{fragments/layout :: footer}"></footer></body></html>
