@@ -395,8 +395,16 @@ class TelasEtapasTest {
         mvc.perform(base.with(sessaoGestor)).andExpect(status().isOk())
             .andExpect(content().string(containsString("Movimento do pátio"))).andExpect(content().string(containsString("-35,42")))
             .andExpect(content().string(containsString("50%"))).andExpect(content().string(containsString("Acumulado")));
+        // Dashboard: cards with the previous period, gauges and the data of the charts, and the TV mode.
+        mvc.perform(base.with(sessaoGestor)).andExpect(status().isOk())
+            .andExpect(content().string(containsString("Qualidade da queima"))).andExpect(content().string(containsString("id=\"dados-painel\"")))
+            .andExpect(content().string(containsString("\"ocupacao\":50"))).andExpect(content().string(containsString("sem comparação")))
+            .andExpect(content().string(containsString("/js/vendor/chart.umd.min.js"))).andExpect(content().string(containsString("Tela cheia")));
+        mvc.perform(get("/painel").param("unidade", unidade.getId().toString()).param("tv", "true").with(sessaoGestor)).andExpect(status().isOk())
+            .andExpect(content().string(containsString("modo-tv"))).andExpect(content().string(containsString("Sair da tela cheia")));
+        mvc.perform(get("/js/vendor/chart.umd.min.js")).andExpect(status().isOk());
         mvc.perform(get("/painel").param("unidade", unidade.getId().toString()).param("etapa", "MAROMBA").with(sessaoGestor)).andExpect(status().isOk())
-            .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Movimento do pátio")))).andExpect(content().string(org.hamcrest.Matchers.not(containsString("Últimas fornadas"))))
+            .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Maromba menos Enforna")))).andExpect(content().string(org.hamcrest.Matchers.not(containsString("Últimas fornadas"))))
             .andExpect(content().string(containsString("Maromba por dia")));
         mvc.perform(get("/painel").param("unidade", unidade.getId().toString()).param("etapa", "ENFORNA").param("formato", SEIS_FUROS.toString()).with(sessaoGestor)).andExpect(status().isOk())
             .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Maromba por dia")))).andExpect(content().string(org.hamcrest.Matchers.not(containsString("35,42"))));

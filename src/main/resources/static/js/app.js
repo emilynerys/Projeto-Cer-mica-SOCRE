@@ -241,3 +241,59 @@ if (kilnForm) {
     }
   });
 }
+
+// Indicadores: charts drawn from the JSON block of the page; the chart library is loaded only there.
+window.addEventListener("load", () => {
+  const fonte = document.getElementById("dados-painel");
+  if (!fonte || !window.Chart) return;
+  const d = JSON.parse(fonte.textContent);
+  const cor = { barro: "#a74123", verde: "#27604b", ambar: "#c98a1b", cinza: "#b9aea3", tinta: "#302b27", vazio: "#efe9e2" };
+  Chart.defaults.font.family = '"Segoe UI", Arial, sans-serif';
+  Chart.defaults.color = "#726a63";
+  const vazio = valores => !valores || valores.every(v => !v);
+  const semDados = (id, texto) => { const c = document.getElementById(id); if (c) c.closest("div").innerHTML = '<p class="dash-empty">' + texto + "</p>"; };
+  const numero = v => v.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+
+  // Gauges: half doughnut; green when at or above the factory's own average, amber a little below, red well below.
+  const medidor = (id, valor, maximo, media, sufixo, neutro) => {
+    const alvo = document.querySelector('[data-gauge="' + id + '"]');
+    if (valor === null || valor === undefined) { alvo.textContent = "—"; semDados("g-" + id, "Sem dados ainda"); return; }
+    let preenchimento = cor.barro;
+    if (!neutro && media) preenchimento = valor >= media - 1 ? cor.verde : valor >= media - 5 ? cor.ambar : cor.barro;
+    alvo.textContent = numero(valor) + sufixo;
+    if (!neutro && media) document.querySelector('[data-gauge-nota="' + id + '"]').textContent += " · média das fornadas: " + numero(media) + sufixo;
+    new Chart(document.getElementById("g-" + id), {
+      type: "doughnut",
+      data: { datasets: [{ data: [Math.min(valor, maximo), Math.max(maximo - valor, 0)], backgroundColor: [preenchimento, cor.vazio], borderWidth: 0 }] },
+      options: { rotation: -90, circumference: 180, cutout: "72%", responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } } }
+    });
+  };
+  medidor("qualidade", d.qualidade, 100, d.qualidadeMedia, "%", false);
+  medidor("ocupacao", d.ocupacao, Math.max(100, d.ocupacao || 0), null, "%", true);
+  medidor("velocidade", d.velocidade, Math.max(15, (d.velocidade || 0) * 1.3), d.velocidadeMedia, "", false);
+
+  const eixo = { grid: { color: "#f1ece6" }, ticks: { precision: 0 } };
+  const base = { responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false }, plugins: { legend: { position: "bottom", labels: { boxWidth: 12 } } } };
+  if (vazio(d.maromba) && vazio(d.enforna) && vazio(d.desenforna)) semDados("c-producao", "Nenhum lançamento validado no período.");
+  else new Chart(document.getElementById("c-producao"), { type: "line", data: { labels: d.dias, datasets: [
+      { label: "Maromba", data: d.maromba, borderColor: cor.cinza, backgroundColor: cor.cinza, cubicInterpolationMode: "monotone", pointRadius: 2 },
+      { label: "Enforna", data: d.enforna, borderColor: cor.barro, backgroundColor: cor.barro, cubicInterpolationMode: "monotone", pointRadius: 2 },
+      { label: "Desenforna (1ª + 2ª)", data: d.desenforna, borderColor: cor.verde, backgroundColor: cor.verde, cubicInterpolationMode: "monotone", pointRadius: 2 }] },
+    options: { ...base, scales: { x: { grid: { display: false } }, y: { ...eixo, beginAtZero: true } } } });
+  if (!d.fornadas.length) semDados("c-qualidade", "Nenhuma fornada com Desenforna ainda.");
+  else new Chart(document.getElementById("c-qualidade"), { type: "bar", data: { labels: d.fornadas, datasets: [
+      { label: "1ª", data: d.primeira, backgroundColor: cor.verde }, { label: "2ª", data: d.segunda, backgroundColor: cor.ambar }, { label: "Cru", data: d.cru, backgroundColor: cor.barro }] },
+    options: { ...base, scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, max: 100, beginAtZero: true, ticks: { callback: v => v + "%" }, grid: eixo.grid } } } });
+  if (vazio(d.patioMaromba) && vazio(d.patioEnforna)) semDados("c-patio", "Nenhum lançamento validado no período.");
+  else new Chart(document.getElementById("c-patio"), { type: "bar", data: { labels: d.semanas, datasets: [
+      { label: "Maromba", data: d.patioMaromba, backgroundColor: cor.cinza }, { label: "Enforna", data: d.patioEnforna, backgroundColor: cor.barro }] },
+    options: { ...base, scales: { x: { grid: { display: false } }, y: { ...eixo, beginAtZero: true } } } });
+  if (vazio(d.estoquePatio) && vazio(d.estoqueForno)) semDados("c-estoque", "Nenhum estoque contado ainda.");
+  else new Chart(document.getElementById("c-estoque"), { type: "bar", data: { labels: d.estoqueRotulos, datasets: [
+      { label: "No pátio", data: d.estoquePatio, backgroundColor: cor.verde }, { label: "No forno", data: d.estoqueForno, backgroundColor: cor.barro }] },
+    options: { ...base, indexAxis: "y", scales: { x: { stacked: true, ...eixo, beginAtZero: true }, y: { stacked: true, grid: { display: false } } } } });
+
+  // TV mode: refreshes itself every 5 minutes.
+  if (document.body.dataset.tv) setTimeout(() => location.reload(), 5 * 60 * 1000);
+});
+

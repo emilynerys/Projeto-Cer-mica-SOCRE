@@ -20,10 +20,12 @@ public class PainelController {
     private final MarombaRepository registros; private final UnidadeRepository unidades; private final ProducaoService service;
     private final EnfornaRepository enfornas; private final DesenfornaRepository desenfornas; private final FornadaService fornadas;
     private final FormatoRepository formatos; private final InventarioRepository inventarios; private final Clock clock; private final PanoramaService panorama;
+    private final EstoqueService estoque;
     public PainelController(MarombaRepository registros, UnidadeRepository unidades, ProducaoService service, EnfornaRepository enfornas,
-            DesenfornaRepository desenfornas, FornadaService fornadas, FormatoRepository formatos, InventarioRepository inventarios, Clock clock, PanoramaService panorama) {
+            DesenfornaRepository desenfornas, FornadaService fornadas, FormatoRepository formatos, InventarioRepository inventarios, Clock clock,
+            PanoramaService panorama, EstoqueService estoque) {
         this.registros = registros; this.unidades = unidades; this.service = service; this.enfornas = enfornas; this.desenfornas = desenfornas;
-        this.fornadas = fornadas; this.formatos = formatos; this.inventarios = inventarios; this.clock = clock; this.panorama = panorama;
+        this.fornadas = fornadas; this.formatos = formatos; this.inventarios = inventarios; this.clock = clock; this.panorama = panorama; this.estoque = estoque;
     }
     /** What one load produced and how its quality compares with the load before it (in percentage points). */
     public record PorFornada(Balanco balanco, String unidade, Integer ocupacao, Double primeira, Double segunda, Double cru,
@@ -57,11 +59,15 @@ public class PainelController {
                 linhasDesenfornadas + o.linhasDesenfornadas, primeira + o.primeira, segunda + o.segunda, cru + o.cru);
         }
     }
+    /** One day of the daily chart, in bricks; the stages are drawn side by side and never added (RN07). */
+    public record Ponto(LocalDate data, long maromba, long enforna, long desenforna) {}
+    /** A dashboard card: this period against the previous one of the same length. */
+    public record Cartao(String nome, String valor, String detalhe, String tendencia, boolean melhorou) {}
     /** RF20: a ready-made period, as a link that keeps the other filters. */
     public record Atalho(String nome, LocalDate inicio, LocalDate fim) {}
     /** Everything the Indicadores screen and its PDF show for the same filters; diasSemRegistro is null across all units. */
     public record Indicadores(LocalDate inicio, LocalDate fim, UUID unidade, String etapa, UUID formato, List<Formato> formatos, List<Dia> diarios, Map<UUID, Long> totalPorFormato,
-            long total, List<Etapas> etapas, Etapas etapasTotal, List<PorFornada> porFornada, List<LocalDate> diasSemRegistro) {
+            long total, List<Etapas> etapas, Etapas etapasTotal, List<PorFornada> porFornada, List<LocalDate> diasSemRegistro, List<Ponto> serie) {
         public boolean verMaromba() { return etapa == null || etapa.equals("MAROMBA"); }
         public boolean verEnforna() { return etapa == null || etapa.equals("ENFORNA"); }
         public boolean verDesenforna() { return etapa == null || etapa.equals("DESENFORNA"); }
@@ -72,10 +78,17 @@ public class PainelController {
     @GetMapping("/painel") String painel(Model model, @AuthenticationPrincipal UsuarioAutenticado p,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fim,
-            @RequestParam(required = false) UUID unidade, @RequestParam(required = false) String etapa, @RequestParam(required = false) UUID formato) {
+            @RequestParam(required = false) UUID unidade, @RequestParam(required = false) String etapa, @RequestParam(required = false) UUID formato,
+            @RequestParam(defaultValue = "false") boolean tv) {
         unidade = unidadeOuUnica(unidade);
         var d = indicadores(inicio, fim, unidade, etapa, formato, p);
         model.addAttribute("d", d);
+        // The same length right before, for the arrows of the cards.
+        long dias = java.time.temporal.ChronoUnit.DAYS.between(d.inicio(), d.fim()) + 1;
+        var anterior = indicadores(d.inicio().minusDays(dias), d.inicio().minusDays(1), unidade, etapa, formato, p);
+        model.addAttribute("cartoes", cartoes(d, anterior));
+        model.addAttribute("graficos", Json.de(graficos(d, unidade, p)));
+        model.addAttribute("tv", tv);
         model.addAttribute("diarios", d.diarios()); model.addAttribute("inicio", d.inicio()); model.addAttribute("fim", d.fim());
         model.addAttribute("formatos", d.formatos()); model.addAttribute("totalPorFormato", d.totalPorFormato());
         model.addAttribute("total", d.total()); model.addAttribute("etapas", d.etapas()); model.addAttribute("etapasTotal", d.etapasTotal());
@@ -151,10 +164,73 @@ public class PainelController {
             var limite = fim.isBefore(service.hoje()) ? fim : service.hoje();
             diasSemRegistro = inicio.isAfter(limite) ? List.of() : inicio.datesUntil(limite.plusDays(1)).filter(d -> !presentes.contains(d)).toList();
         }
+        var porData = new TreeMap<LocalDate, long[]>();
+        for (var dia = inicio; !dia.isAfter(fim); dia = dia.plusDays(1)) porData.put(dia, new long[3]);
+        diarios.forEach(x -> porData.get(x.data())[0] += x.total());
+        enfornados.stream().filter(e -> formato == null || e.getFormato().getId().equals(formato)).forEach(e -> porData.get(e.getData())[1] += e.getQuantidade());
+        desenfornados.stream().filter(x -> formato == null || x.getFormato().getId().equals(formato)).forEach(x -> porData.get(x.getData())[2] += x.getAcabado());
+        var serie = porData.entrySet().stream().map(e -> new Ponto(e.getKey(), e.getValue()[0], e.getValue()[1], e.getValue()[2])).toList();
         return new Indicadores(inicio, fim, unidade, etapa, formato, mostrados, diarios, totalPorFormato,
             totalPorFormato.values().stream().mapToLong(Long::longValue).sum(), etapas,
-            etapas.stream().reduce(new Etapas("Total", 0, 0, 0, 0, 0, 0, 0), Etapas::somar), porFornada, diasSemRegistro);
+            etapas.stream().reduce(new Etapas("Total", 0, 0, 0, 0, 0, 0, 0), Etapas::somar), porFornada, diasSemRegistro, serie);
     }
+    private static final TemplateAdvice.Formatos FMT = new TemplateAdvice.Formatos();
+    /** Maromba, Enforna, finished output and share of 1st quality, each against the previous period. */
+    private static List<Cartao> cartoes(Indicadores d, Indicadores antes) {
+        var t = d.etapasTotal(); var a = antes.etapasTotal();
+        Integer q = t.percentual(t.primeira()), qa = a.percentual(a.primeira());
+        return List.of(
+            volume("Maromba", d.total(), antes.total()),
+            volume("Enforna", t.enforna(), a.enforna()),
+            volume("Desenforna (1ª + 2ª)", t.acabado(), a.acabado()),
+            new Cartao("1ª qualidade", q == null ? "—" : q + "%", "do que saiu do forno",
+                q == null || qa == null ? "sem comparação" : (q >= qa ? "▲ " : "▼ ") + Math.abs(q - qa) + " p.p. no período anterior", q != null && qa != null && q >= qa));
+    }
+    private static Cartao volume(String nome, long agora, long antes) {
+        String tendencia = antes == 0 ? "sem comparação" : (agora >= antes ? "▲ " : "▼ ") + Math.round(Math.abs(agora - antes) * 100.0 / antes) + "% no período anterior";
+        return new Cartao(nome, FMT.milheiros(agora), "milheiros", tendencia, antes != 0 && agora >= antes);
+    }
+    /** What the charts draw, in thousands of bricks, read by app.js. */
+    private Map<String, Object> graficos(Indicadores d, UUID unidade, UsuarioAutenticado p) {
+        var g = new LinkedHashMap<String, Object>();
+        var rotulo = java.time.format.DateTimeFormatter.ofPattern("dd/MM");
+        g.put("dias", d.serie().stream().map(x -> x.data().format(rotulo)).toList());
+        g.put("maromba", d.serie().stream().map(x -> mil(x.maromba())).toList());
+        g.put("enforna", d.serie().stream().map(x -> mil(x.enforna())).toList());
+        g.put("desenforna", d.serie().stream().map(x -> mil(x.desenforna())).toList());
+        // RN19 by week: Maromba against Enforna.
+        var semanas = new TreeMap<LocalDate, long[]>();
+        d.serie().forEach(x -> { var s = semanas.computeIfAbsent(x.data().with(DayOfWeek.MONDAY), k -> new long[2]); s[0] += x.maromba(); s[1] += x.enforna(); });
+        g.put("semanas", semanas.keySet().stream().map(x -> "sem. " + x.format(rotulo)).toList());
+        g.put("patioMaromba", semanas.values().stream().map(x -> mil(x[0])).toList());
+        g.put("patioEnforna", semanas.values().stream().map(x -> mil(x[1])).toList());
+        // Quality of the last loads, oldest first, from what was counted at the Desenforna.
+        var fornadasComSaida = new ArrayList<>(d.porFornada().stream().filter(f -> f.primeira() != null).toList());
+        Collections.reverse(fornadasComSaida);
+        g.put("fornadas", fornadasComSaida.stream().map(f -> f.balanco().fornada().getNumero() + "ª " + f.balanco().fornada().getMes().getMonth().getDisplayName(java.time.format.TextStyle.SHORT, Locale.forLanguageTag("pt-BR"))).toList());
+        g.put("primeira", fornadasComSaida.stream().map(f -> umaCasa(f.primeira())).toList());
+        g.put("segunda", fornadasComSaida.stream().map(f -> umaCasa(f.segunda())).toList());
+        g.put("cru", fornadasComSaida.stream().map(f -> umaCasa(f.cru())).toList());
+        // Gauges: quality of the period, occupation of the load being filled, speed of the last measured firing.
+        var t = d.etapasTotal();
+        g.put("qualidade", t.percentual(t.primeira()));
+        g.put("qualidadeMedia", fornadasComSaida.isEmpty() ? null : umaCasa(fornadasComSaida.stream().mapToDouble(PorFornada::primeira).average().orElse(0)));
+        g.put("ocupacao", d.porFornada().stream().filter(f -> f.balanco().fornada().isRecebendoEnforna()).map(PorFornada::ocupacao).filter(Objects::nonNull).findFirst().orElse(null));
+        var velocidades = d.porFornada().stream().map(f -> f.balanco().linhasPor24h()).filter(Objects::nonNull).toList();
+        g.put("velocidade", velocidades.isEmpty() ? null : umaCasa(velocidades.getFirst()));
+        g.put("velocidadeMedia", velocidades.isEmpty() ? null : umaCasa(velocidades.stream().mapToDouble(Double::doubleValue).average().orElse(0)));
+        // Burnt brick stock: yard count and Assado lines of the last map.
+        var q = estoque.quadro(unidades.deTrabalho(unidade).getId());
+        var rotulos = new ArrayList<String>(); var patio = new ArrayList<Double>(); var forno = new ArrayList<Double>();
+        for (var l : q.linhas()) {
+            rotulos.add(l.formato().getSigla() + " 1ª"); patio.add(mil(l.patioPrimeira() == null ? 0 : l.patioPrimeira())); forno.add(mil(l.forno()));
+            rotulos.add(l.formato().getSigla() + " 2ª"); patio.add(mil(l.patioSegunda() == null ? 0 : l.patioSegunda())); forno.add(0.0);
+        }
+        g.put("estoqueRotulos", rotulos); g.put("estoquePatio", patio); g.put("estoqueForno", forno);
+        return g;
+    }
+    private static double mil(long tijolos) { return Math.round(tijolos / 100.0) / 10.0; }
+    private static Double umaCasa(Double v) { return v == null ? null : Math.round(v * 10) / 10.0; }
     /** Today, this week, this month and everything since the initial inventory (at most the one year the filter accepts). */
     private List<Atalho> atalhos(UUID unidade) {
         var hoje = service.hoje();
