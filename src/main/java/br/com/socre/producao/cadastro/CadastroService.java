@@ -139,10 +139,10 @@ public class CadastroService {
         if (n.isEmpty() || n.length() > 120) throw new RegraNegocioException("Informe o nome em até 120 caracteres.");
         return n;
     }
-    /** The login is the person's name, as "luiz" or "raul": lowercase letters, numbers, dot, dash or underscore. */
+    /** The login is the person's name, as "maria" or "jose": lowercase letters, numbers, dot, dash or underscore. */
     private String login(String login, UUID proprio) {
         var l = login == null ? "" : login.strip().toLowerCase(Locale.ROOT);
-        if (!l.matches("[a-z0-9][a-z0-9._-]{1,39}")) throw new RegraNegocioException("Informe o login com 2 a 40 letras minúsculas ou números, sem espaço nem acento, como luiz.");
+        if (!l.matches("[a-z0-9][a-z0-9._-]{1,39}")) throw new RegraNegocioException("Informe o login com 2 a 40 letras minúsculas ou números, sem espaço nem acento, como maria.");
         usuarios.findByLoginIgnoreCase(l).filter(o -> !o.getId().equals(proprio)).ifPresent(o -> {
             throw new RegraNegocioException("Já existe uma conta com este login.");
         });

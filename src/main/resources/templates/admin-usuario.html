@@ -6,7 +6,7 @@
 
   <form method="post" th:action="${usuario == null} ? @{/admin/usuarios} : @{/admin/usuarios/{id}(id=${usuario.id})}" class="panel form-panel stack">
     <label for="nome">Nome<input type="text" id="nome" name="nome" th:value="${form.nome}" maxlength="120" required></label>
-    <label for="login">Login <span class="field-help">O nome que a pessoa digita para entrar, como luiz. Sem espaço nem acento.</span><input type="text" id="login" name="login" th:value="${form.login}" maxlength="40" autocapitalize="none" spellcheck="false" autocomplete="off" required></label>
+    <label for="login">Login <span class="field-help">O nome que a pessoa digita para entrar, como maria. Sem espaço nem acento.</span><input type="text" id="login" name="login" th:value="${form.login}" maxlength="40" autocapitalize="none" spellcheck="false" autocomplete="off" required></label>
     <label for="perfil">Perfil de acesso<select id="perfil" name="perfil" required><option value="">Escolha</option><option th:each="x : ${perfis}" th:value="${x}" th:text="${x.descricao}" th:selected="${x == form.perfil}"></option></select></label>
     <label for="idUnidade" th:if="${unidades.size() > 1}">Unidade <span class="field-help">Só para o Registro de Produção.</span><select id="idUnidade" name="idUnidade"><option value="">Nenhuma</option><option th:each="u : ${unidades}" th:value="${u.id}" th:text="${u.nome}" th:selected="${u.id == form.idUnidade}"></option></select></label>
     <p class="field-help" th:if="${unidades.size() == 1}">O Registro de Produção fica ligado à unidade <strong th:text="${unidades[0].nome}"></strong>.</p>
