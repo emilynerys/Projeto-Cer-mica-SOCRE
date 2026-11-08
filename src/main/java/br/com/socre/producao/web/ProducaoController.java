@@ -220,7 +220,7 @@ public class ProducaoController {
     private void prepararForm(Model model, UsuarioAutenticado p, Maromba original) {
         model.addAttribute("registro", original);
         model.addAttribute("motivosCorrecao", service.motivos(Motivo.Tipo.CORRECAO));
-        model.addAttribute("unidade", original == null ? unidades.findById(p.unidadeId()).orElseThrow() : original.getUnidade());
+        model.addAttribute("unidade", original == null ? unidades.deTrabalho(p.unidadeId()) : original.getUnidade());
         model.addAttribute("formatos", original == null ? service.formatosAtivos() : List.of(original.getFormato()));
         model.addAttribute("hoje", service.hoje());
     }

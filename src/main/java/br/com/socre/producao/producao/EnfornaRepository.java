@@ -14,4 +14,6 @@ public interface EnfornaRepository extends JpaRepository<Enforna, UUID> {
     boolean existeImportado(UUID unidade);
     @Query("select e from Enforna e where e.data between :inicio and :fim and (:autor is null or e.autor.id = :autor) and (:unidade is null or e.fornada.unidade.id = :unidade) and (:situacao is null or e.situacao = :situacao)")
     List<Enforna> consultar(LocalDate inicio, LocalDate fim, UUID autor, UUID unidade, Situacao situacao);
+    @Query("select count(e) from Enforna e where e.fornada.unidade.id = :unidade and e.situacao = br.com.socre.producao.producao.Situacao.PENDENTE")
+    long pendentes(UUID unidade);
 }

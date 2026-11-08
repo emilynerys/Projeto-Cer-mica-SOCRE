@@ -22,4 +22,6 @@ public interface MarombaRepository extends JpaRepository<Maromba, UUID> {
     List<TotalDiario> totais(LocalDate inicio, LocalDate fim, UUID unidade);
     @Query("select distinct m.data from Maromba m where m.data between :inicio and :fim and m.unidade.id = :unidade and m.situacao <> br.com.socre.producao.producao.Situacao.CANCELADO")
     List<LocalDate> datasRegistradas(LocalDate inicio, LocalDate fim, UUID unidade);
+    @Query("select count(m) from Maromba m where m.unidade.id = :unidade and m.situacao = br.com.socre.producao.producao.Situacao.PENDENTE")
+    long pendentes(UUID unidade);
 }

@@ -76,6 +76,9 @@ class FluxoFornadaTest {
         assertThat(fornadas.emAndamento(unidade.getId())).hasSize(2);
         assertThat(fornadas.podeAbrirNova(unidade.getId())).isFalse();
         assertThatThrownBy(this::abrir).isInstanceOf(RegraNegocioException.class);
+        // A load with the Registro's records still Pending does not close.
+        assertThatThrownBy(() -> fornadas.concluir(primeira.getId(), gestor, recarregar(primeira).getVersao())).hasMessageContaining("pendente");
+        validarPendentes(primeira);
         fornadas.concluir(primeira.getId(), gestor, recarregar(primeira).getVersao());
         assertThat(abrir().getNumero()).isEqualTo(3);
     }
@@ -123,6 +126,7 @@ class FluxoFornadaTest {
         assertThat(balanco.sugerirConclusao()).isTrue();
         assertThat(balanco.diferenca()).isEqualTo(3100 + 2400 - 4830);
         assertThatThrownBy(() -> fornadas.concluir(fornada.getId(), registro, recarregar(fornada).getVersao())).isInstanceOf(AccessDeniedException.class);
+        validarPendentes(fornada);
         fornadas.concluir(fornada.getId(), gestor, recarregar(fornada).getVersao());
         assertThat(recarregar(fornada).isEmAndamento()).isFalse();
         // A concluded load takes no more Desenforna.
@@ -219,5 +223,15 @@ class FluxoFornadaTest {
             .isInstanceOf(RegraNegocioException.class);
         assertThatThrownBy(() -> fornadas.registrarMarco(f.getId(), geral, f.getVersao(), Fornada.Marco.FIM_QUEIMA, Instant.now()))
             .isInstanceOf(AccessDeniedException.class);
+    }
+    @Autowired EnfornaRepository enfornaRegistros;
+    @Autowired DesenfornaRepository desenfornaRegistros;
+    private void validarPendentes(Fornada f) {
+        for (var e : enfornaRegistros.daFornada(f.getId())) if (e.getSituacao() == Situacao.PENDENTE) enfornaRegistros.save(validado(e));
+        for (var d : desenfornaRegistros.daFornada(f.getId())) if (d.getSituacao() == Situacao.PENDENTE) desenfornaRegistros.save(validado(d));
+    }
+    private <R extends RegistroEtapa> R validado(R r) {
+        r.validar(usuarios.findById(gestor.id()).orElseThrow(), java.time.Instant.now());
+        return r;
     }
 }

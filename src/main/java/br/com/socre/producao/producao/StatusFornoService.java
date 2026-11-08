@@ -8,7 +8,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-// Status do Forno: the Gestor de Produção or the Gestor Geral types the operator's paper; every profile reads it.
+// Status do Forno: the Gestor de Produção types the operator's paper; every profile reads it.
 @Service
 public class StatusFornoService {
     private final StatusFornoRepository status; private final UnidadeRepository unidades; private final FormatoRepository formatos;
@@ -92,7 +92,7 @@ public class StatusFornoService {
     }
     @Transactional
     public StatusForno registrar(UsuarioAutenticado p, StatusFornoForm f) {
-        var gestor = apoio.comPerfil(p, Perfil.GESTOR_PRODUCAO, Perfil.GESTOR_GERAL);
+        var gestor = apoio.comPerfil(p, Perfil.GESTOR_PRODUCAO);
         var unidade = Optional.ofNullable(f.getIdUnidade()).flatMap(unidades::findById)
             .orElseThrow(() -> new RegraNegocioException("Escolha uma unidade cadastrada."));
         if (f.getDataHora() == null) throw new RegraNegocioException("Informe a data e a hora do status.");
@@ -114,9 +114,14 @@ public class StatusFornoService {
             if (l.getIdFormato() != null)
                 formato = formatos.findById(l.getIdFormato()).filter(Formato::isAtivo)
                     .orElseThrow(() -> new RegraNegocioException("Escolha um formato cadastrado."));
-            linhas.add(new StatusForno.Linha(n, formato, l.getEstado()));
+            int quantidade = 0;
+            if (formato != null) {
+                quantidade = l.getQuantidade() == null || l.getQuantidade() == 0 ? formato.getTijolosPorLinha() : l.getQuantidade();
+                if (quantidade < 0 || quantidade > 100_000) throw new RegraNegocioException("Linha " + n + ": confira a quantidade de tijolos.");
+            }
+            linhas.add(new StatusForno.Linha(n, formato, l.getEstado(), quantidade));
         }
-        var salvo = status.saveAndFlush(new StatusForno(unidade, gestor, quando, observacao, linhas, apoio.agora()));
+        var salvo = status.saveAndFlush(new StatusForno(unidade, gestor, quando, observacao, linhas, fornadas.emAndamento(unidade.getId()), apoio.agora()));
         apoio.auditar("status_forno", salvo.getId(), gestor, "CRIACAO", null, salvo.retrato(), null, null);
         return salvo;
     }

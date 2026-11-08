@@ -70,12 +70,12 @@ $accessText = @"
 
 Endereço: http://127.0.0.1:8080
 
-| Perfil | E-mail |
+| Perfil | Login |
 | --- | --- |
-| Registro de Produção | registro@socre.local |
-| Gestor de Produção | gestor@socre.local |
-| Gestor Geral | geral@socre.local |
-| Administrador | admin@socre.local |
+| Registro de Produção | registro |
+| Gestor de Produção | gestor |
+| Gestor Geral | geral |
+| Administrador | admin |
 
 Senha de demonstração das quatro contas: $($localSecrets.demoPassword)
 

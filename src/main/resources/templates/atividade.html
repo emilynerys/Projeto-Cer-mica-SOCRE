@@ -1,0 +1,14 @@
+<!DOCTYPE html><html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"><head th:replace="~{fragments/layout :: head('Atividade recente')}"></head>
+<body><header th:replace="~{fragments/layout :: header}"></header><main class="container">
+  <a class="back-link" th:href="@{/admin}">← Voltar à administração</a>
+  <div class="page-heading"><div><p class="eyebrow">Administração</p><h1>Atividade recente</h1><p class="muted">Tudo o que cada pessoa fez no sistema, do mais novo para o mais antigo. Nada aqui pode ser apagado.</p></div></div>
+  <section class="panel records-panel"><div class="empty-state" th:if="${eventos.empty}"><p>Nenhuma atividade ainda.</p></div>
+    <div class="table-wrap" th:unless="${eventos.empty}"><table class="activity-table"><thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>Detalhe</th></tr></thead><tbody>
+      <tr th:each="e : ${eventos}">
+        <td data-label="Quando" th:text="${fmt.horario(e.dataHora)}"></td>
+        <td data-label="Quem"><strong th:text="${e.usuario.nome}"></strong><small th:text="${e.usuario.perfil.descricao}"></small></td>
+        <td data-label="O quê"><span th:text="${e.acao}"></span><small th:text="${e.assunto}"></small></td>
+        <td data-label="Detalhe"><span th:if="${e.antes != null}" class="activity-before" th:text="${'Antes: ' + e.antes}"></span><span th:text="${e.depois == null ? '' : e.depois}"></span>
+          <small th:if="${e.motivo != null}" th:text="${'Motivo: ' + e.motivo.descricao + (e.textoMotivo == null ? '' : ' · ' + e.textoMotivo)}"></small></td></tr>
+    </tbody></table></div></section>
+</main><footer th:replace="~{fragments/layout :: footer}"></footer></body></html>

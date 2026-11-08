@@ -17,36 +17,39 @@ public class CadastroService {
             PasswordEncoder encoder, RegistroApoio apoio) {
         this.usuarios = usuarios; this.unidades = unidades; this.formatos = formatos; this.motivos = motivos; this.encoder = encoder; this.apoio = apoio;
     }
-    public record UsuarioForm(String nome, String email, Perfil perfil, UUID idUnidade, Boolean ativo, String senha) {}
+    public record UsuarioForm(String nome, String login, Perfil perfil, UUID idUnidade, Boolean ativo, String senha) {}
     public record FormatoForm(String nome, Integer tijolosPorLinha, Boolean ativo) {}
     public record MotivoForm(Motivo.Tipo tipo, String descricao, Boolean exigeTexto) {}
 
     @Transactional
     public Usuario criarUsuario(UsuarioAutenticado p, UsuarioForm f) {
         var admin = apoio.comPerfil(p, Perfil.ADMINISTRADOR);
-        apoio.travar("usuario-email");
-        var email = email(f.email(), null);
+        apoio.travar("usuario-login");
+        var login = login(f.login(), null);
         var nome = nome(f.nome());
         if (f.perfil() == null) throw new RegraNegocioException("Escolha o perfil de acesso.");
         conferirSenha(f.senha());
-        var u = usuarios.saveAndFlush(new Usuario(UUID.randomUUID(), nome, email, encoder.encode(f.senha()), f.perfil(), unidadeDoPerfil(f.perfil(), f.idUnidade())));
+        var novo = new Usuario(UUID.randomUUID(), nome, login, encoder.encode(f.senha()), f.perfil(), unidadeDoPerfil(f.perfil(), f.idUnidade()));
+        // The Administrador only knows this first password; the person creates one at the first access.
+        novo.exigirTrocaDeSenha();
+        var u = usuarios.saveAndFlush(novo);
         apoio.auditar("usuario", u.getId(), admin, "CRIACAO", null, retrato(u), null, null);
         return u;
     }
     @Transactional
     public Usuario editarUsuario(UsuarioAutenticado p, UUID id, UsuarioForm f) {
         var admin = apoio.comPerfil(p, Perfil.ADMINISTRADOR);
-        apoio.travar("usuario-email");
+        apoio.travar("usuario-login");
         var u = usuario(id);
-        var email = email(f.email(), id);
-        var nome = nome(f.nome());
-        if (f.perfil() == null) throw new RegraNegocioException("Escolha o perfil de acesso.");
         boolean ativo = Boolean.TRUE.equals(f.ativo());
         // Only an Administrador reaches this screen, so this also guarantees that one always remains.
         if (u.getId().equals(admin.getId()) && (f.perfil() != u.getPerfil() || !ativo))
             throw new RegraNegocioException("Você não pode mudar o próprio perfil nem desativar a própria conta.");
+        var login = login(f.login(), id);
+        var nome = nome(f.nome());
+        if (f.perfil() == null) throw new RegraNegocioException("Escolha o perfil de acesso.");
         String antes = retrato(u);
-        u.editar(nome, email, f.perfil(), unidadeDoPerfil(f.perfil(), f.idUnidade()), ativo);
+        u.editar(nome, login, f.perfil(), unidadeDoPerfil(f.perfil(), f.idUnidade()), ativo);
         usuarios.flush();
         apoio.auditar("usuario", u.getId(), admin, "EDICAO", antes, retrato(u), null, null);
         return u;
@@ -136,13 +139,14 @@ public class CadastroService {
         if (n.isEmpty() || n.length() > 120) throw new RegraNegocioException("Informe o nome em até 120 caracteres.");
         return n;
     }
-    private String email(String email, UUID proprio) {
-        var e = email == null ? "" : email.strip().toLowerCase(Locale.ROOT);
-        if (e.length() > 180 || !e.matches("[^@\\s]+@[^@\\s]+")) throw new RegraNegocioException("Informe um e-mail válido, como nome@exemplo.com.");
-        usuarios.findByEmailIgnoreCase(e).filter(o -> !o.getId().equals(proprio)).ifPresent(o -> {
-            throw new RegraNegocioException("Já existe uma conta com este e-mail.");
+    /** The login is the person's name, as "luiz" or "raul": lowercase letters, numbers, dot, dash or underscore. */
+    private String login(String login, UUID proprio) {
+        var l = login == null ? "" : login.strip().toLowerCase(Locale.ROOT);
+        if (!l.matches("[a-z0-9][a-z0-9._-]{1,39}")) throw new RegraNegocioException("Informe o login com 2 a 40 letras minúsculas ou números, sem espaço nem acento, como luiz.");
+        usuarios.findByLoginIgnoreCase(l).filter(o -> !o.getId().equals(proprio)).ifPresent(o -> {
+            throw new RegraNegocioException("Já existe uma conta com este login.");
         });
-        return e;
+        return l;
     }
     private static void conferirSenha(String senha) {
         if (senha == null || senha.length() < SENHA_MINIMA) throw new RegraNegocioException("A senha precisa ter ao menos " + SENHA_MINIMA + " caracteres.");
@@ -169,7 +173,7 @@ public class CadastroService {
         return valor;
     }
     private static String retrato(Usuario u) {
-        return u.getNome() + " · " + u.getEmail() + " · " + u.getPerfil().getDescricao() + (u.getUnidade() == null ? "" : " · " + u.getUnidade().getNome())
+        return u.getNome() + " · " + u.getLogin() + " · " + u.getPerfil().getDescricao() + (u.getUnidade() == null ? "" : " · " + u.getUnidade().getNome())
             + " · " + (u.isAtivo() ? "Ativo" : "Inativo");
     }
     private static String retrato(Formato f) { return f.getNome() + " · " + f.getTijolosPorLinha() + " tijolos por linha · " + (f.isAtivo() ? "Ativo" : "Inativo"); }

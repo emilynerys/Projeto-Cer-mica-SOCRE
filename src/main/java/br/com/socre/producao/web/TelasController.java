@@ -10,20 +10,21 @@ import org.springframework.web.bind.annotation.GetMapping;
 
 @Controller
 public class TelasController {
-    private final UnidadeRepository unidades;
-    public TelasController(UnidadeRepository unidades) { this.unidades = unidades; }
+    private final UnidadeRepository unidades; private final br.com.socre.producao.producao.PanoramaService panorama;
+    public TelasController(UnidadeRepository unidades, br.com.socre.producao.producao.PanoramaService panorama) { this.unidades = unidades; this.panorama = panorama; }
     @GetMapping("/login") String login() { return "login"; }
     @GetMapping("/") String inicio(@AuthenticationPrincipal UsuarioAutenticado p) {
         return switch (p.perfil()) {
             case REGISTRO_PRODUCAO -> "redirect:/lancamentos";
-            case GESTOR_PRODUCAO -> "redirect:/producao";
+            case GESTOR_PRODUCAO -> "redirect:/lancamentos";
             case GESTOR_GERAL -> "redirect:/painel";
             case ADMINISTRADOR -> "redirect:/admin";
         };
     }
-    /** The Registro de Produção starts here: only the three stages to register; the history has its own page. */
+    /** Who registers starts here: the kiln situation and the three stages; the history has its own page. */
     @GetMapping("/lancamentos") String lancamentos(@AuthenticationPrincipal UsuarioAutenticado p, Model model) {
-        model.addAttribute("unidade", unidades.findById(p.unidadeId()).orElseThrow());
+        model.addAttribute("unidade", unidades.deTrabalho(p.unidadeId()));
+        model.addAttribute("panorama", panorama.de(p.unidadeId()));
         return "producao/lancamentos";
     }
     @GetMapping("/acesso-negado") String negado(HttpServletResponse response, Model model) {

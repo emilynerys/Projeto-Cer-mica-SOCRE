@@ -14,8 +14,10 @@ public class StatusFornoForm {
     public static class Linha {
         private UUID idFormato;
         private StatusForno.Estado estado;
+        private Integer quantidade;
         public Linha() {}
-        public Linha(UUID idFormato, StatusForno.Estado estado) { this.idFormato = idFormato; this.estado = estado; }
+        public Linha(UUID idFormato, StatusForno.Estado estado, Integer quantidade) { this.idFormato = idFormato; this.estado = estado; this.quantidade = quantidade; }
+        public Integer getQuantidade() { return quantidade; } public void setQuantidade(Integer v) { quantidade = v; }
         public UUID getIdFormato() { return idFormato; } public void setIdFormato(UUID v) { idFormato = v; }
         public StatusForno.Estado getEstado() { return estado; } public void setEstado(StatusForno.Estado v) { estado = v; }
     }

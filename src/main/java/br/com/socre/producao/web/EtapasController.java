@@ -59,11 +59,11 @@ public class EtapasController {
         model.addAttribute("form", f); prepararEnforna(model, p, e);
         return "producao/enforna-form";
     }
-    @PostMapping("/enforna/{id}/editar") String atualizarEnforna(@PathVariable UUID id, @Valid @ModelAttribute("form") EnfornaForm f, BindingResult errors,
+    @PostMapping("/enforna/{id}/editar") String atualizarEnforna(@PathVariable UUID id, @Valid @ModelAttribute("form") EnfornaForm f, BindingResult errors, @RequestParam(required = false) String voltar,
             @AuthenticationPrincipal UsuarioAutenticado p, Model model, RedirectAttributes flash) {
         var e = enfornas.consultar(id, p); exigir(enfornas.podeAlterar(e, p));
         if (!errors.hasErrors()) {
-            try { enfornas.editar(id, p, f); flash.addFlashAttribute("sucesso", "Correção salva. O valor anterior continua no histórico."); return "redirect:/producao/enforna/" + id; }
+            try { enfornas.editar(id, p, f); flash.addFlashAttribute("sucesso", "Correção salva. O valor anterior continua no histórico."); return "redirect:" + destino(voltar, "/producao/enforna/" + id); }
             catch (RuntimeException ex) { tratar(ex, model); }
         } else model.addAttribute("mensagemErro", "Confira os campos: use números inteiros, sem deixar campos vazios.");
         prepararEnforna(model, p, e);
@@ -79,7 +79,7 @@ public class EtapasController {
     private void prepararEnforna(Model model, UsuarioAutenticado p, Enforna original) {
         model.addAttribute("registro", original);
         model.addAttribute("formatos", original == null ? producao.formatosAtivos() : List.of(original.getFormato()));
-        var unidade = original == null ? unidades.findById(p.unidadeId()).orElseThrow() : original.getUnidade();
+        var unidade = original == null ? unidades.deTrabalho(p.unidadeId()) : original.getUnidade();
         model.addAttribute("unidade", unidade);
         // A new Enforna goes to the load the Gestor opened; the screen shows how many lines still fit in the kiln.
         var fornada = original == null ? fornadas.paraEnforna(unidade.getId()).orElse(null) : original.getFornada();
@@ -95,7 +95,7 @@ public class EtapasController {
     @GetMapping("/desenforna/nova") String novaDesenforna(@AuthenticationPrincipal UsuarioAutenticado p, Model model) {
         var f = new DesenfornaForm(); f.setData(producao.hoje()); f.setChaveEnvio(UUID.randomUUID());
         producao.formatosAtivos().forEach(formato -> f.getItens().put(formato.getId(), new DesenfornaForm.Item(0, 0, 0, 0)));
-        var abertas = fornadas.emAndamento(p.unidadeId());
+        var abertas = fornadas.emAndamento(unidades.deTrabalho(p.unidadeId()).getId());
         // The load being emptied is the oldest in progress (RN08).
         if (!abertas.isEmpty()) f.setIdFornada(abertas.getFirst().getId());
         model.addAttribute("form", f); prepararDesenforna(model, p, null);
@@ -129,11 +129,11 @@ public class EtapasController {
         model.addAttribute("form", f); prepararDesenforna(model, p, d);
         return "producao/desenforna-form";
     }
-    @PostMapping("/desenforna/{id}/editar") String atualizarDesenforna(@PathVariable UUID id, @Valid @ModelAttribute("form") DesenfornaForm f, BindingResult errors,
+    @PostMapping("/desenforna/{id}/editar") String atualizarDesenforna(@PathVariable UUID id, @Valid @ModelAttribute("form") DesenfornaForm f, BindingResult errors, @RequestParam(required = false) String voltar,
             @AuthenticationPrincipal UsuarioAutenticado p, Model model, RedirectAttributes flash) {
         var d = desenfornas.consultar(id, p); exigir(desenfornas.podeAlterar(d, p));
         if (!errors.hasErrors()) {
-            try { desenfornas.editar(id, p, f); flash.addFlashAttribute("sucesso", "Correção salva. O valor anterior continua no histórico."); return "redirect:/producao/desenforna/" + id; }
+            try { desenfornas.editar(id, p, f); flash.addFlashAttribute("sucesso", "Correção salva. O valor anterior continua no histórico."); return "redirect:" + destino(voltar, "/producao/desenforna/" + id); }
             catch (RuntimeException ex) { tratar(ex, model); }
         } else model.addAttribute("mensagemErro", "Confira os campos: use números inteiros, sem deixar campos vazios.");
         prepararDesenforna(model, p, d);
@@ -149,7 +149,7 @@ public class EtapasController {
     private void prepararDesenforna(Model model, UsuarioAutenticado p, Desenforna original) {
         model.addAttribute("registro", original);
         model.addAttribute("formatos", original == null ? producao.formatosAtivos() : List.of(original.getFormato()));
-        var unidade = original == null ? unidades.findById(p.unidadeId()).orElseThrow() : original.getUnidade();
+        var unidade = original == null ? unidades.deTrabalho(p.unidadeId()) : original.getUnidade();
         model.addAttribute("unidade", unidade);
         model.addAttribute("fornadasDisponiveis", original == null ? fornadas.emAndamento(unidade.getId()) : List.of(original.getFornada()));
         model.addAttribute("motivosCorrecao", producao.motivos(Motivo.Tipo.CORRECAO));
@@ -180,5 +180,7 @@ public class EtapasController {
         catch (OptimisticLockingFailureException e) { flash.addFlashAttribute("falha", "Não foi possível concluir esta revisão. Confira o estado atual do registro."); }
         return "redirect:" + destino;
     }
+    /** A correction made from the Fornadas window goes back there; only that screen is accepted. */
+    private static String destino(String voltar, String padrao) { return voltar != null && voltar.startsWith("/fornadas") ? voltar : padrao; }
     private static void exigir(boolean pode) { if (!pode) throw new AccessDeniedException("Seu perfil não permite esta operação."); }
 }

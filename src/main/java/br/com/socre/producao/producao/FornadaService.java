@@ -77,6 +77,10 @@ public class FornadaService {
         var gestor = apoio.comPerfil(p, Perfil.GESTOR_PRODUCAO);
         var f = consultar(id, p);
         exigirEmAndamento(f, versao);
+        // Only the Registro's records can be Pending: the Gestor's own enter Validated.
+        long pendentes = enfornas.daFornada(f.getId()).stream().filter(r -> r.getSituacao() == Situacao.PENDENTE).count()
+            + desenfornas.daFornada(f.getId()).stream().filter(r -> r.getSituacao() == Situacao.PENDENTE).count();
+        if (pendentes > 0) throw new RegraNegocioException("A " + f.getIdentificacao() + " tem " + pendentes + " lançamento(s) do Registro pendente(s). Valide ou corrija antes de fechar.");
         var balanco = balanco(f);
         String antes = retrato(f);
         f.concluir(apoio.agora());

@@ -41,6 +41,13 @@ public class VerificarSessaoFilter extends OncePerRequestFilter {
             if (p.perfil() == Perfil.REGISTRO_PRODUCAO) {
                 cookies.writeCookieValue(new CookieSerializer.CookieValue(req, res, session.getId()));
             }
+            // A provisional password (first access or reset by the Administrador) is changed before anything else.
+            String caminho = req.getRequestURI().substring(req.getContextPath().length());
+            if (u.isTrocarSenha() && !(caminho.equals("/senha") || caminho.equals("/logout") || caminho.startsWith("/css/")
+                    || caminho.startsWith("/js/") || caminho.equals("/favicon.svg") || caminho.equals("/error"))) {
+                res.sendRedirect(req.getContextPath() + "/senha");
+                return;
+            }
         }
         chain.doFilter(req, res);
     }

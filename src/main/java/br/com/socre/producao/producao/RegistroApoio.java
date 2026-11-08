@@ -16,11 +16,11 @@ import org.springframework.stereotype.Component;
 public class RegistroApoio {
     public static final ZoneId FUSO = ZoneId.of("America/Fortaleza");
     private final UsuarioRepository usuarios; private final AuditoriaRepository auditoria; private final MotivoRepository motivos;
-    private final InventarioRepository inventarios; private final JdbcTemplate jdbc; private final Clock clock;
+    private final InventarioRepository inventarios; private final JdbcTemplate jdbc; private final Clock clock; private final UnidadeRepository unidades;
     public RegistroApoio(UsuarioRepository usuarios, AuditoriaRepository auditoria, MotivoRepository motivos,
-            InventarioRepository inventarios, JdbcTemplate jdbc, Clock clock) {
+            InventarioRepository inventarios, JdbcTemplate jdbc, Clock clock, UnidadeRepository unidades) {
         this.usuarios = usuarios; this.auditoria = auditoria; this.motivos = motivos;
-        this.inventarios = inventarios; this.jdbc = jdbc; this.clock = clock;
+        this.inventarios = inventarios; this.jdbc = jdbc; this.clock = clock; this.unidades = unidades;
     }
     public Instant agora() { return clock.instant(); }
     public LocalDate hoje() { return LocalDate.now(clock.withZone(FUSO)); }
@@ -35,6 +35,15 @@ public class RegistroApoio {
         var u = usuarioAtivo(p);
         if (!Arrays.asList(perfis).contains(u.getPerfil())) negar();
         return u;
+    }
+    /** Who may register production: the Registro de Produção and, since 08/11/2026, the Gestor de Produção. */
+    public Usuario quemLanca(UsuarioAutenticado p) { return comPerfil(p, Perfil.REGISTRO_PRODUCAO, Perfil.GESTOR_PRODUCAO); }
+    public Unidade unidadeDeTrabalho(Usuario u) { return unidades.deTrabalho(u.getUnidade() == null ? null : u.getUnidade().getId()); }
+    /** The Gestor de Produção checks what he registers himself, so it enters Validated; the Registro's records stay Pending. */
+    public void validarSeGestor(RegistroEtapa r, Usuario u) {
+        if (u.getPerfil() != Perfil.GESTOR_PRODUCAO) return;
+        r.validar(u, agora());
+        auditar(r, u, "VALIDACAO", null);
     }
     public void negar() { throw new AccessDeniedException("Seu perfil não permite esta operação."); }
 

@@ -6,11 +6,11 @@
 
   <form method="post" th:action="${usuario == null} ? @{/admin/usuarios} : @{/admin/usuarios/{id}(id=${usuario.id})}" class="panel form-panel stack">
     <label for="nome">Nome<input type="text" id="nome" name="nome" th:value="${form.nome}" maxlength="120" required></label>
-    <label for="email">E-mail<input type="email" id="email" name="email" th:value="${form.email}" maxlength="180" autocomplete="off" required></label>
+    <label for="login">Login <span class="field-help">O nome que a pessoa digita para entrar, como luiz. Sem espaço nem acento.</span><input type="text" id="login" name="login" th:value="${form.login}" maxlength="40" autocapitalize="none" spellcheck="false" autocomplete="off" required></label>
     <label for="perfil">Perfil de acesso<select id="perfil" name="perfil" required><option value="">Escolha</option><option th:each="x : ${perfis}" th:value="${x}" th:text="${x.descricao}" th:selected="${x == form.perfil}"></option></select></label>
     <label for="idUnidade" th:if="${unidades.size() > 1}">Unidade <span class="field-help">Só para o Registro de Produção.</span><select id="idUnidade" name="idUnidade"><option value="">Nenhuma</option><option th:each="u : ${unidades}" th:value="${u.id}" th:text="${u.nome}" th:selected="${u.id == form.idUnidade}"></option></select></label>
     <p class="field-help" th:if="${unidades.size() == 1}">O Registro de Produção fica ligado à unidade <strong th:text="${unidades[0].nome}"></strong>.</p>
-    <label for="senha" th:if="${usuario == null}">Senha inicial <span class="field-help">Ao menos 8 caracteres. Depois de salva, ninguém consegue vê-la.</span><input type="password" id="senha" name="senha" minlength="8" autocomplete="new-password" required></label>
+    <label for="senha" th:if="${usuario == null}">Senha provisória <span class="field-help">Ao menos 8 caracteres. No primeiro acesso a pessoa troca por uma senha só dela.</span><input type="password" id="senha" name="senha" minlength="8" autocomplete="new-password" required></label>
     <label class="check-line" th:if="${usuario != null}"><input type="checkbox" name="ativo" value="true" th:checked="${form.ativo}"> Conta ativa <span class="field-help">Conta inativa não entra no sistema, mas os lançamentos dela continuam guardados.</span></label>
     <input type="hidden" name="ativo" value="true" th:if="${usuario == null}">
     <div class="actions"><button class="button primary" type="submit" th:text="${usuario == null ? 'Criar conta' : 'Salvar alterações'}"></button><a class="button secondary" th:href="@{/admin}">Cancelar</a></div>
@@ -18,7 +18,7 @@
 
   <form method="post" th:if="${usuario != null}" th:action="@{/admin/usuarios/{id}/senha(id=${usuario.id})}" class="panel form-panel stack" data-admin-senha>
     <h2>Redefinir senha</h2>
-    <p class="field-help">Use quando a pessoa esquecer a senha. Ela sai do sistema e precisa entrar com a senha nova, que você deve passar para ela.</p>
+    <p class="field-help">Use quando a pessoa esquecer a senha. Ela sai do sistema, entra com esta senha provisória e cria uma nova no primeiro acesso.</p>
     <label for="novaSenha">Senha nova<input type="password" id="novaSenha" name="senha" minlength="8" autocomplete="new-password" required></label>
     <div class="actions"><button class="button secondary" type="submit">Redefinir senha</button></div>
   </form>

@@ -7,6 +7,8 @@
     </div>
   </div>
   <div class="notice success" role="status" th:if="${sucesso}" th:text="${sucesso}"></div><div class="notice error" role="alert" th:if="${falha}" th:text="${falha}"></div>
+  <th:block th:if="${usuarioAtual.perfil.name() == 'REGISTRO_PRODUCAO' or usuarioAtual.perfil.name() == 'GESTOR_PRODUCAO'}" th:replace="~{fragments/panorama :: aviso(${panorama}, ${usuarioAtual.perfil.name() == 'GESTOR_PRODUCAO'})}"></th:block>
+  <th:block th:unless="${usuarioAtual.perfil.name() == 'REGISTRO_PRODUCAO' or usuarioAtual.perfil.name() == 'GESTOR_PRODUCAO'}" th:replace="~{fragments/panorama :: quadros(${panorama})}"></th:block>
   <p class="field-help" th:if="${podeConcluir and !podeAbrir and emAndamento != null and emAndamento.size() >= 2}">Já há duas fornadas em andamento. Feche a mais antiga para abrir outra.</p>
 
   <h2>Em andamento</h2>
@@ -24,6 +26,46 @@
         <td data-label="1ª qualidade" th:text="${fmt.inteiro(b.primeira())}"></td><td data-label="2ª qualidade" th:text="${fmt.inteiro(b.segunda())}"></td><td data-label="Cru" th:text="${fmt.inteiro(b.cru())}"></td><td data-label="Diferença" th:text="${fmt.inteiro(b.diferenca())}"></td></tr>
     </tbody></table></div>
     <p class="field-help">Diferença = desenfornado − enfornado. Fica negativa enquanto ainda há linhas no forno.</p>
+
+    <details class="fornada-records" th:unless="${usuarioAtual.perfil.name() == 'REGISTRO_PRODUCAO'}" th:with="ls=${lancamentos.get(b.fornada.id)}">
+      <summary th:text="${'Lançamentos desta fornada (' + ls.size() + ')'}"></summary>
+      <p class="field-help" th:if="${ls.empty}">Nenhuma Enforna ou Desenforna nesta fornada ainda.</p>
+      <div class="table-wrap" th:unless="${ls.empty}"><table><thead><tr><th>Data</th><th>Etapa</th><th>Formato</th><th>Valores</th><th>Situação</th><th><span class="sr-only">Ação</span></th></tr></thead><tbody>
+        <tr th:each="r : ${ls}"><td data-label="Data" th:text="${fmt.data(r.data)}"></td><td data-label="Etapa" th:text="${r.etapa}"></td><td data-label="Formato" th:text="${r.formato.nome}"></td>
+          <td data-label="Valores" th:text="${r.etapa == 'Enforna' ? r.linhas + ' linhas · ' + fmt.inteiro(r.quantidade) + ' tijolos' : r.linhas + ' linhas · 1ª ' + fmt.inteiro(r.primeira) + ' · 2ª ' + fmt.inteiro(r.segunda) + ' · Cru ' + fmt.inteiro(r.cru)}"></td>
+          <td data-label="Situação"><span class="badge" th:classappend="${r.situacao.name() == 'PENDENTE' ? 'pending' : 'validated'}" th:text="${r.situacao.descricao}"></span></td>
+          <td><button th:if="${podeCorrigir}" type="button" class="button quiet" th:attr="data-open-dialog=${'corrigir-' + r.id}">Corrigir</button>
+            <a th:unless="${podeCorrigir}" class="button quiet" th:href="@{${r.etapa == 'Enforna' ? '/producao/enforna/' : '/producao/desenforna/'}{id}(id=${r.id})}">Abrir</a></td></tr>
+      </tbody></table></div>
+    </details>
+    <dialog th:if="${podeCorrigir}" th:each="r : ${lancamentos.get(b.fornada.id)}" th:id="${'corrigir-' + r.id}" class="day-dialog correction-dialog" th:attr="aria-labelledby=${'corrigir-' + r.id + '-titulo'}">
+      <form method="post" th:action="${r.etapa == 'Enforna'} ? @{/producao/enforna/{id}/editar(id=${r.id})} : @{/producao/desenforna/{id}/editar(id=${r.id})}">
+        <div class="dialog-heading"><div><h2 th:id="${'corrigir-' + r.id + '-titulo'}" th:text="${'Corrigir ' + r.etapa + ' de ' + fmt.data(r.data)}"></h2><p class="muted" th:text="${r.formato.nome + ' · ' + b.fornada.identificacao}"></p></div>
+          <button type="button" class="button quiet" data-close-dialog aria-label="Fechar">Fechar ✕</button></div>
+        <div class="correction-body">
+          <input type="hidden" name="voltar" th:value="${'/fornadas?unidade=' + unidadeSelecionada}"><input type="hidden" name="chaveEnvio" th:value="${r.chaveEnvio}">
+          <input type="hidden" name="versao" th:value="${r.versao}"><input type="hidden" name="idFornada" th:value="${b.fornada.id}">
+          <div class="correction-grid">
+            <label>Data<input type="date" name="data" th:value="${r.data}" required></label>
+            <label>Linhas<input type="number" min="1" step="1" th:name="${'itens[' + r.formato.id + '].linhas'}" th:value="${r.linhas}" required></label>
+            <th:block th:if="${r.etapa == 'Enforna'}">
+              <label>Tijolos por linha<input type="number" min="1" step="1" th:name="${'itens[' + r.formato.id + '].tijolosPorLinha'}" th:value="${r.tijolosPorLinha}" required></label>
+              <label>Quantidade<input type="number" min="1" step="1" th:name="${'itens[' + r.formato.id + '].quantidade'}" th:value="${r.quantidade}" required></label>
+            </th:block>
+            <th:block th:unless="${r.etapa == 'Enforna'}">
+              <label>1ª qualidade<input type="number" min="0" step="1" th:name="${'itens[' + r.formato.id + '].primeira'}" th:value="${r.primeira}" required></label>
+              <label>2ª qualidade<input type="number" min="0" step="1" th:name="${'itens[' + r.formato.id + '].segunda'}" th:value="${r.segunda}" required></label>
+              <label>Cru<input type="number" min="0" step="1" th:name="${'itens[' + r.formato.id + '].cru'}" th:value="${r.cru}" required></label>
+            </th:block>
+          </div>
+          <label>Motivo da correção<select name="idMotivo" required><option value="">Escolha</option><option th:each="m : ${motivosCorrecao}" th:value="${m.id}" th:text="${m.descricao}"></option></select></label>
+          <label>Descrição do motivo <span class="field-help">Obrigatória quando o motivo for "Outro".</span><input type="text" name="textoMotivo" maxlength="500"></label>
+          <div class="actions"><button class="button primary" type="submit">Salvar correção</button><button type="button" class="button secondary" data-close-dialog>Cancelar</button></div>
+        </div>
+      </form>
+    </dialog>
+    <p class="field-help fornada-maps" th:with="ms=${mapasDaFornada.get(b.fornada.id)}"><span th:if="${ms.empty}">Nenhum Status do Forno lançado enquanto esta fornada está aberta.</span>
+      <th:block th:unless="${ms.empty}">Status do Forno desta fornada: <a th:each="m, st : ${ms}" th:href="@{/status-forno(id=${m.id})}" th:text="${fmt.horario(m.dataHora) + (st.last ? '' : ' · ')}"></a></th:block></p>
 
     <h4 class="marcos-title">Horários do fogo <small>opcional</small></h4>
     <div class="marco-row" th:each="m : ${marcos}" th:with="valor=${m.name() == 'INICIO_ESQUENTE' ? b.fornada.inicioEsquente : b.fornada.fimQueima}">

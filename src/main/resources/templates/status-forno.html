@@ -1,6 +1,6 @@
 <!DOCTYPE html><html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"><head th:replace="~{fragments/layout :: head('Status do Forno')}"></head>
 <body><header th:replace="~{fragments/layout :: header}"></header><main class="container">
-  <div class="page-heading"><div><p class="eyebrow">Forno</p><h1>Status do Forno</h1><p class="muted">O forno linha por linha, como no papel do forneiro. O Gestor de Produção ou o Gestor Geral lança cada status novo.</p></div>
+  <div class="page-heading"><div><p class="eyebrow">Forno</p><h1>Status do Forno</h1><p class="muted">O forno linha por linha, como no papel do forneiro. O Gestor de Produção lança cada status novo.</p></div>
     <div class="actions">
       <form method="get" th:action="@{/status-forno}" class="inline-form" th:if="${usuarioAtual.perfil.name() != 'REGISTRO_PRODUCAO' and unidades.size() > 1}"><label>Unidade<select name="unidade" data-auto-submit><option th:each="u : ${unidades}" th:value="${u.id}" th:text="${u.nome}" th:selected="${u.id == unidadeSelecionada}"></option></select></label><noscript><button class="button secondary" type="submit">Ver</button></noscript></form>
       <a th:if="${podeLancar and unidadeSelecionada != null}" class="button primary" th:href="@{/status-forno/novo(unidade=${unidadeSelecionada})}"><span aria-hidden="true">+</span> Lançar status</a>
@@ -9,13 +9,14 @@
   <div class="notice success" role="status" th:if="${sucesso}" th:text="${sucesso}"></div>
 
   <div class="panel empty-state" th:if="${atual == null}"><span class="empty-mark" aria-hidden="true">▦</span><h3>Nenhum status lançado ainda</h3>
-    <p th:text="${podeLancar ? 'Quando o papel do forneiro chegar, lance o status para ver o mapa do forno.' : 'O Gestor de Produção ou o Gestor Geral lança o status quando recebe o papel do forneiro.'}"></p></div>
+    <p th:text="${podeLancar ? 'Quando o papel do forneiro chegar, lance o status para ver o mapa do forno.' : 'O Gestor de Produção lança o status quando recebe o papel do forneiro.'}"></p></div>
 
   <th:block th:if="${atual != null}">
   <section class="panel form-panel">
     <div class="section-heading flush"><h2 th:text="${'Status de ' + fmt.horario(atual.dataHora)}"></h2>
       <span class="badge" th:classappend="${atual.id == historico[0].id ? 'validated' : 'pending'}" th:text="${atual.id == historico[0].id ? 'Mais recente' : 'Status anterior'}"></span></div>
     <p class="field-help">Lançado por <strong th:text="${atual.autor.nome}"></strong>.</p>
+    <p class="field-help" th:unless="${atual.fornadas.empty}">Fornadas em andamento neste mapa: <strong th:text="${#strings.listJoin(atual.fornadas.![identificacao], ' e ')}"></strong>.</p>
     <p class="kiln-note" th:if="${atual.observacao != null}" th:text="${atual.observacao}"></p>
 
     <div class="kiln-check" th:if="${conferencia != null}" data-conferencia>

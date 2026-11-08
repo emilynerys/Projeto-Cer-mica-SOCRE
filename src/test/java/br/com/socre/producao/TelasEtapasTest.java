@@ -51,8 +51,9 @@ class TelasEtapasTest {
         var id = UUID.randomUUID();
         return UsuarioAutenticado.from(usuarios.saveAndFlush(new Usuario(id, perfil.getDescricao(), id + "@teste.local", senhaHash, perfil, u)));
     }
-    private RequestPostProcessor autenticado(UsuarioAutenticado p) throws Exception {
-        var resultado = mvc.perform(post("/login").with(csrf()).param("email", p.email()).param("password", SENHA))
+    private RequestPostProcessor autenticado(UsuarioAutenticado p) throws Exception { return autenticado(p, SENHA); }
+    private RequestPostProcessor autenticado(UsuarioAutenticado p, String senha) throws Exception {
+        var resultado = mvc.perform(post("/login").with(csrf()).param("login", p.login()).param("password", senha))
             .andExpect(redirectedUrl("/")).andReturn();
         var cookie = resultado.getResponse().getCookie("SOCRE_SESSION");
         String id = new String(Base64.getDecoder().decode(cookie.getValue()), StandardCharsets.UTF_8);
@@ -82,7 +83,7 @@ class TelasEtapasTest {
         mvc.perform(get("/producao/enforna/nova").with(sessao)).andExpect(status().isOk())
             .andExpect(content().string(containsString("Nenhuma fornada aberta"))).andExpect(content().string(containsString("Tijolos por linha")));
         var sessaoGestor = autenticado(gestor);
-        mvc.perform(get("/lancamentos").with(sessaoGestor)).andExpect(status().isForbidden());
+        mvc.perform(get("/lancamentos").with(sessaoGestor)).andExpect(status().isOk()).andExpect(content().string(containsString("Situação do forno agora")));
         mvc.perform(post("/fornadas/abrir").with(sessao).with(csrf()).param("unidade", unidade.getId().toString())).andExpect(status().isForbidden());
         mvc.perform(post("/fornadas/abrir").with(sessaoGestor).with(csrf()).param("unidade", unidade.getId().toString()))
             .andExpect(status().is3xxRedirection()).andExpect(flash().attribute("sucesso", org.hamcrest.Matchers.containsString("aberta")));
@@ -191,7 +192,7 @@ class TelasEtapasTest {
         mvc.perform(get("/fornadas").param("unidade", unidade.getId().toString()).with(sessaoAdmin)).andExpect(status().isOk())
             .andExpect(content().string(containsString(f.getIdentificacao()))).andExpect(content().string(org.hamcrest.Matchers.not(containsString(">Corrigir<"))));
         mvc.perform(post("/fornadas/" + f.getId() + "/concluir").with(sessaoAdmin).with(csrf()).param("versao", "1")).andExpect(status().isForbidden());
-        mvc.perform(get("/producao/enforna/nova").with(sessaoGestor)).andExpect(status().isForbidden());
+        mvc.perform(get("/producao/enforna/nova").with(sessaoGestor)).andExpect(status().isOk());
     }
 
     @Test void statusDoFornoLancadoPeloGestorComResumoEVistoPorTodos() throws Exception {
@@ -222,8 +223,8 @@ class TelasEtapasTest {
             .andExpect(content().string(containsString("data-estado=\"QUEIMA\"")))
             .andExpect(content().string(containsString("Lançar status")));
         mvc.perform(get("/status-forno/novo").param("unidade", unidade.getId().toString()).with(sessaoGestor)).andExpect(status().isOk())
-            .andExpect(content().string(containsString("Preencher várias linhas"))).andExpect(content().string(containsString("O fogo andou")))
-            .andExpect(content().string(containsString("name=\"linhas[46].estado\"")));
+            .andExpect(content().string(containsString("Preencher várias linhas"))).andExpect(content().string(containsString("data-fogo-aqui=\"38\"")))
+            .andExpect(content().string(containsString("name=\"linhas[46].estado\""))).andExpect(content().string(containsString("name=\"linhas[38].quantidade\" value=\"1610\"")));
         // Registro de Produção reads the map of its unit but does not launch it.
         mvc.perform(get("/status-forno").with(sessaoRegistro)).andExpect(status().isOk())
             .andExpect(content().string(containsString("57.960"))).andExpect(content().string(org.hamcrest.Matchers.not(containsString("Lançar status"))));
@@ -231,13 +232,11 @@ class TelasEtapasTest {
         mvc.perform(get("/status-forno").param("unidade", unidade.getId().toString()).with(sessaoAdmin)).andExpect(status().isOk())
             .andExpect(content().string(containsString("57.960"))).andExpect(content().string(org.hamcrest.Matchers.not(containsString("Lançar status"))));
         mvc.perform(get("/status-forno/novo").with(sessaoAdmin)).andExpect(status().isForbidden());
-        // The Gestor Geral also launches it: the paper may reach either gestor.
+        // The Gestor Geral reads the map but does not launch it (08/11/2026).
         var sessaoGeral = autenticado(usuario(Perfil.GESTOR_GERAL, null));
-        mvc.perform(get("/status-forno/novo").param("unidade", unidade.getId().toString()).with(sessaoGeral)).andExpect(status().isOk())
-            .andExpect(content().string(containsString("O fogo andou")));
-        lancarStatus(sessaoGeral, OITO_FUROS, 12, 1);
+        mvc.perform(get("/status-forno/novo").param("unidade", unidade.getId().toString()).with(sessaoGeral)).andExpect(status().isForbidden());
         mvc.perform(get("/status-forno").param("unidade", unidade.getId().toString()).with(sessaoGeral)).andExpect(status().isOk())
-            .andExpect(content().string(containsString("Lançar status"))).andExpect(content().string(containsString("19.320")));
+            .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Lançar status"))));
     }
 
     /** Posts a kiln map with the given format in Assado on lines 2 onward, the rest empty. */
@@ -327,32 +326,42 @@ class TelasEtapasTest {
 
     @Test void administradorCadastraUsuarioRedefineSenhaEDesativa() throws Exception {
         var sessaoAdmin = autenticado(admin);
-        var email = UUID.randomUUID() + "@teste.local";
+        var email = "pessoa" + UUID.randomUUID().toString().substring(0, 8);
         mvc.perform(get("/admin").with(sessaoAdmin)).andExpect(status().isOk())
             .andExpect(content().string(containsString("Novo usuário"))).andExpect(content().string(containsString("Novo formato"))).andExpect(content().string(containsString("Adicionar motivo")));
         mvc.perform(get("/admin/usuarios/novo").with(autenticado(gestor))).andExpect(status().isForbidden());
         // Short password and repeated e-mail come back with the message, and nothing is saved.
-        mvc.perform(post("/admin/usuarios").with(sessaoAdmin).with(csrf()).param("nome", "Pessoa nova").param("email", email).param("perfil", "GESTOR_GERAL").param("senha", "curta"))
+        mvc.perform(post("/admin/usuarios").with(sessaoAdmin).with(csrf()).param("nome", "Pessoa nova").param("login", email).param("perfil", "GESTOR_GERAL").param("senha", "curta"))
             .andExpect(status().isOk()).andExpect(content().string(containsString("ao menos 8 caracteres")));
-        mvc.perform(post("/admin/usuarios").with(sessaoAdmin).with(csrf()).param("nome", "Repetida").param("email", gestor.email()).param("perfil", "GESTOR_GERAL").param("senha", SENHA))
-            .andExpect(status().isOk()).andExpect(content().string(containsString("Já existe uma conta")));
-        mvc.perform(post("/admin/usuarios").with(sessaoAdmin).with(csrf()).param("nome", "Pessoa nova").param("email", email).param("perfil", "GESTOR_GERAL").param("senha", SENHA))
+        mvc.perform(post("/admin/usuarios").with(sessaoAdmin).with(csrf()).param("nome", "Com e-mail").param("login", "nome@exemplo.com").param("perfil", "GESTOR_GERAL").param("senha", SENHA))
+            .andExpect(status().isOk()).andExpect(content().string(containsString("sem espaço nem acento")));
+        mvc.perform(post("/admin/usuarios").with(sessaoAdmin).with(csrf()).param("nome", "Pessoa nova").param("login", email).param("perfil", "GESTOR_GERAL").param("senha", SENHA))
             .andExpect(redirectedUrl("/admin"));
-        var novo = usuarios.findByEmailIgnoreCase(email).orElseThrow();
+        mvc.perform(post("/admin/usuarios").with(sessaoAdmin).with(csrf()).param("nome", "Repetida").param("login", email).param("perfil", "GESTOR_GERAL").param("senha", SENHA))
+            .andExpect(status().isOk()).andExpect(content().string(containsString("Já existe uma conta")));
+        var novo = usuarios.findByLoginIgnoreCase(email).orElseThrow();
         assertThat(novo.getSenhaHash()).isNotEqualTo(SENHA);
         var sessaoNova = autenticado(UsuarioAutenticado.from(novo));
+        // First access: the provisional password must be changed before anything else.
+        mvc.perform(get("/painel").with(sessaoNova)).andExpect(redirectedUrl("/senha"));
+        mvc.perform(post("/senha").with(sessaoNova).with(csrf()).param("atual", SENHA).param("nova", "curta").param("confirmacao", "curta"))
+            .andExpect(status().isOk()).andExpect(content().string(containsString("ao menos 8 caracteres")));
+        mvc.perform(post("/senha").with(sessaoNova).with(csrf()).param("atual", SENHA).param("nova", "senha-da-pessoa").param("confirmacao", "senha-da-pessoa"))
+            .andExpect(redirectedUrl("/login?senhaTrocada"));
+        assertThat(usuarios.findById(novo.getId()).orElseThrow().isTrocarSenha()).isFalse();
+        sessaoNova = autenticado(UsuarioAutenticado.from(usuarios.findById(novo.getId()).orElseThrow()), "senha-da-pessoa");
         mvc.perform(get("/painel").with(sessaoNova)).andExpect(status().isOk());
         // Reset: the old session ends, the old password stops working, the new one works, and the trail does not hold it.
         var senhaNova = "outra-senha-do-teste";
         mvc.perform(post("/admin/usuarios/" + novo.getId() + "/senha").with(sessaoAdmin).with(csrf()).param("senha", senhaNova)).andExpect(redirectedUrl("/admin"));
         mvc.perform(get("/painel").with(sessaoNova)).andExpect(redirectedUrl("/login?expirou"));
-        mvc.perform(post("/login").with(csrf()).param("email", email).param("password", SENHA)).andExpect(redirectedUrl("/login?erro"));
-        mvc.perform(post("/login").with(csrf()).param("email", email).param("password", senhaNova)).andExpect(redirectedUrl("/"));
+        mvc.perform(post("/login").with(csrf()).param("login", email).param("password", SENHA)).andExpect(redirectedUrl("/login?erro"));
+        mvc.perform(post("/login").with(csrf()).param("login", email).param("password", senhaNova)).andExpect(redirectedUrl("/"));
         // Deactivated accounts do not enter; the Administrador cannot lock itself out.
-        mvc.perform(post("/admin/usuarios/" + novo.getId()).with(sessaoAdmin).with(csrf()).param("nome", "Pessoa nova").param("email", email).param("perfil", "GESTOR_GERAL")).andExpect(redirectedUrl("/admin"));
+        mvc.perform(post("/admin/usuarios/" + novo.getId()).with(sessaoAdmin).with(csrf()).param("nome", "Pessoa nova").param("login", email).param("perfil", "GESTOR_GERAL")).andExpect(redirectedUrl("/admin"));
         assertThat(usuarios.findById(novo.getId()).orElseThrow().isAtivo()).isFalse();
-        mvc.perform(post("/login").with(csrf()).param("email", email).param("password", senhaNova)).andExpect(redirectedUrl("/login?erro"));
-        mvc.perform(post("/admin/usuarios/" + admin.id()).with(sessaoAdmin).with(csrf()).param("nome", "Eu").param("email", admin.email()).param("perfil", "ADMINISTRADOR"))
+        mvc.perform(post("/login").with(csrf()).param("login", email).param("password", senhaNova)).andExpect(redirectedUrl("/login?erro"));
+        mvc.perform(post("/admin/usuarios/" + admin.id()).with(sessaoAdmin).with(csrf()).param("nome", "Eu").param("login", admin.login()).param("perfil", "ADMINISTRADOR"))
             .andExpect(status().isOk()).andExpect(content().string(containsString("própria conta")));
     }
     @Test void administradorAlteraFormatoCapacidadeEMotivos() throws Exception {
@@ -451,5 +460,43 @@ class TelasEtapasTest {
         assertThat(deOutro).doesNotContain("6440");
         var soMaromba = mvc.perform(get("/producao/exportar.csv").param("inicio", hoje).param("fim", hoje).param("etapa", "MAROMBA").with(sessaoRegistro)).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         assertThat(soMaromba).doesNotContain("Enforna");
+    }
+
+    @Autowired MotivoRepository motivosTeste;
+    @Test void gestorLancaJaValidadoCorrigePelaFornadaEContaOEstoque() throws Exception {
+        var gestorDaUnidade = usuario(Perfil.GESTOR_PRODUCAO, unidade);
+        var sessaoGestor = autenticado(gestorDaUnidade);
+        fornadas.abrirNova(unidade.getId(), gestorDaUnidade);
+        // What the Gestor de Produção registers enters Validated, with the warning block on the launch screen.
+        mvc.perform(get("/lancamentos").with(sessaoGestor)).andExpect(status().isOk()).andExpect(content().string(containsString("Toda Enforna lançada agora entra nesta fornada")));
+        var e = registrarEnforna(sessaoGestor, 4);
+        assertThat(e.getSituacao()).isEqualTo(Situacao.VALIDADO); assertThat(e.getValidador().getId()).isEqualTo(gestorDaUnidade.id());
+        // The load lists its records, and the correction opens in a window that comes back to Fornadas.
+        mvc.perform(get("/fornadas").param("unidade", unidade.getId().toString()).with(sessaoGestor)).andExpect(status().isOk())
+            .andExpect(content().string(containsString("corrigir-" + e.getId()))).andExpect(content().string(containsString("Lançamentos desta fornada (1)")));
+        var motivo = motivosTeste.findByTipoAndAtivoTrueOrderByDescricao(Motivo.Tipo.CORRECAO).getFirst();
+        var voltar = "/fornadas?unidade=" + unidade.getId();
+        mvc.perform(post("/producao/enforna/" + e.getId() + "/editar").with(sessaoGestor).with(csrf()).param("voltar", voltar)
+                .param("chaveEnvio", e.getChaveEnvio().toString()).param("versao", String.valueOf(enfornas.findById(e.getId()).orElseThrow().getVersao()))
+                .param("idFornada", e.getFornada().getId().toString()).param("data", e.getData().toString()).param("idMotivo", motivo.getId().toString())
+                .param("textoMotivo", "Teste").param("itens[" + OITO_FUROS + "].linhas", "5").param("itens[" + OITO_FUROS + "].tijolosPorLinha", "1610")
+                .param("itens[" + OITO_FUROS + "].quantidade", "8050"))
+            .andExpect(redirectedUrl(voltar));
+        assertThat(enfornas.findById(e.getId()).orElseThrow().getQuantidade()).isEqualTo(8050);
+
+        // Yard count by the Gestor de Produção; the Gestor Geral reads it; the Registro does not see the stock.
+        mvc.perform(post("/estoque").with(sessaoGestor).with(csrf()).param("unidade", unidade.getId().toString()).param("data", producao.hoje().toString())
+                .param("primeira-" + OITO_FUROS, "22.915").param("segunda-" + OITO_FUROS, "3.440")).andExpect(flash().attribute("sucesso", "Contagem do pátio salva."));
+        mvc.perform(get("/estoque").with(sessaoGestor)).andExpect(status().isOk())
+            .andExpect(content().string(containsString("22.915"))).andExpect(content().string(containsString("3.440"))).andExpect(content().string(containsString("Salvar contagem")));
+        mvc.perform(get("/estoque").with(autenticado(usuario(Perfil.GESTOR_GERAL, null)))).andExpect(status().isOk())
+            .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Salvar contagem")))).andExpect(content().string(containsString("Fornadas em andamento")));
+        mvc.perform(get("/estoque").with(autenticado(registro))).andExpect(status().isForbidden());
+        mvc.perform(post("/estoque").with(autenticado(usuario(Perfil.GESTOR_GERAL, null))).with(csrf()).param("unidade", unidade.getId().toString())).andExpect(status().isForbidden());
+
+        // The Administrador follows everything on Atividade recente.
+        mvc.perform(get("/admin/atividade").with(autenticado(admin))).andExpect(status().isOk())
+            .andExpect(content().string(containsString("Estoque do pátio"))).andExpect(content().string(containsString("Registro corrigido")));
+        mvc.perform(get("/admin/atividade").with(sessaoGestor)).andExpect(status().isForbidden());
     }
 }

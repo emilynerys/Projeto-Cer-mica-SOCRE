@@ -28,7 +28,7 @@ public class StatusFornoController {
             @RequestParam(required = false) UUID id, Model model) {
         var pedido = id == null ? null : status.consultar(id, p);
         var escolhida = unidadeDaTela(p, pedido != null ? pedido.getUnidade().getId() : unidade, model);
-        model.addAttribute("podeLancar", p.perfil() == Perfil.GESTOR_PRODUCAO || p.perfil() == Perfil.GESTOR_GERAL);
+        model.addAttribute("podeLancar", p.perfil() == Perfil.GESTOR_PRODUCAO);
         if (escolhida == null) return "status-forno";
         var historico = status.recentes(escolhida.getId(), p, NO_HISTORICO);
         var atual = pedido != null ? pedido : historico.isEmpty() ? null : historico.getFirst();
@@ -51,7 +51,7 @@ public class StatusFornoController {
         if (escolhida != null) {
             form.setIdUnidade(escolhida.getId());
             status.recentes(escolhida.getId(), p, 1).stream().findFirst().ifPresent(ultimo -> ultimo.getLinhas().forEach(l ->
-                form.getLinhas().put(l.getLinha(), new StatusFornoForm.Linha(l.isVazia() ? null : l.getFormato().getId(), l.getEstado()))));
+                form.getLinhas().put(l.getLinha(), new StatusFornoForm.Linha(l.isVazia() ? null : l.getFormato().getId(), l.getEstado(), l.isVazia() ? null : l.getQuantidade()))));
         }
         form.setDataHora(agora());
         return formulario(model, escolhida, form);
@@ -72,7 +72,11 @@ public class StatusFornoController {
         if (unidade != null) {
             var porId = new HashMap<UUID, Formato>(); ativos.forEach(f -> porId.put(f.getId(), f));
             var porLinha = new HashMap<Integer, Celula>();
-            form.getLinhas().forEach((n, l) -> porLinha.put(n, new Celula(n, porId.get(l.getIdFormato()), l.getEstado(), 0)));
+            form.getLinhas().forEach((n, l) -> {
+                var formato = porId.get(l.getIdFormato());
+                int quantidade = formato == null ? 0 : l.getQuantidade() == null || l.getQuantidade() == 0 ? formato.getTijolosPorLinha() : l.getQuantidade();
+                porLinha.put(n, new Celula(n, formato, l.getEstado(), quantidade));
+            });
             model.addAttribute("fileiras", fileiras(unidade.getLinhasForno(), porLinha));
             model.addAttribute("totalLinhas", unidade.getLinhasForno());
         }

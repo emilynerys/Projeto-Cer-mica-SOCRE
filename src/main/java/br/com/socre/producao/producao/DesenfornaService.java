@@ -22,8 +22,8 @@ public class DesenfornaService extends EtapaService<Desenforna> {
 
     @Transactional
     public List<Desenforna> criar(UsuarioAutenticado p, DesenfornaForm f) {
-        var autor = apoio.comPerfil(p, Perfil.REGISTRO_PRODUCAO);
-        var unidade = autor.getUnidade();
+        var autor = apoio.quemLanca(p);
+        var unidade = apoio.unidadeDeTrabalho(autor);
         if (f.getChaveEnvio() == null) throw new RegraNegocioException("Abra novamente o formulário para gerar um identificador de envio.");
         apoio.conferirData(unidade, f.getData());
         var fornada = f.getIdFornada() == null ? null : fornadas.findById(f.getIdFornada()).orElse(null);
@@ -57,7 +57,7 @@ public class DesenfornaService extends EtapaService<Desenforna> {
             criados.add(desenfornas.saveAndFlush(new Desenforna(fornada, l.formato(), autor, f.getData(), l.linhas(), l.primeira(),
                 l.segunda(), l.cru(), f.getChaveEnvio(), impressao, apoio.agora())));
         }
-        for (var d : criados) apoio.auditar(d, autor, "CRIACAO", null);
+        for (var d : criados) { apoio.auditar(d, autor, "CRIACAO", null); apoio.validarSeGestor(d, autor); }
         return criados;
     }
     @Transactional

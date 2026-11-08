@@ -199,43 +199,45 @@ if (kilnForm) {
     note.textContent = count === 0 ? "Nenhuma linha nesse intervalo." : "Linhas " + low + " a " + high + " preenchidas. Confira no mapa e salve.";
   });
 
-  // "O fogo andou": the burning line turns Assado and the next one starts burning; after the last line the fire goes back to line 1.
+  // Fire: tapping a line number puts the fire there. Heating or burning lines before it are burnt; raw bricks put behind the fire stay raw.
   const fire = kilnForm.querySelector("[data-fogo]");
   const fireNote = fire.querySelector("[data-fogo-msg]"), undoFire = fire.querySelector("[data-fogo-desfazer]");
   const total = kilnForm.querySelectorAll("[data-linha-estado]").length;
-  const next = n => n === total ? 1 : n + 1;
-  const stateOf = n => line(n, "estado").value;
   const undoSteps = [];
-  const setState = (n, value) => { const state = line(n, "estado"); state.value = value; paint(state); state.closest("td").classList.add("kiln-changed"); };
   const clearChanged = () => kilnForm.querySelectorAll(".kiln-changed").forEach(cell => cell.classList.remove("kiln-changed"));
+  const setState = (n, value) => { const state = line(n, "estado"); if (state.value === value) return; state.value = value; paint(state); state.closest("td").classList.add("kiln-changed"); };
   fire.hidden = false;
-  fire.querySelector("[data-fogo-andar]").addEventListener("click", () => {
-    const lines = Array.from({ length: total }, (_, i) => i + 1);
-    const burning = lines.filter(n => stateOf(n) === "QUEIMA");
-    const before = lines.map(stateOf);
+  kilnForm.querySelectorAll("[data-fogo-aqui]").forEach(button => button.addEventListener("click", () => {
+    const target = Number(button.dataset.fogoAqui);
+    if (line(target, "idFormato").value === "") { fireNote.textContent = "A linha " + target + " está vazia. Toque em uma linha com tijolo."; return; }
+    const before = Array.from({ length: total }, (_, i) => line(i + 1, "estado").value);
     clearChanged();
-    if (burning.length === 0) {
-      const first = lines.find(n => stateOf(n) === "ESQUENTE");
-      if (!first) { fireNote.textContent = "Nenhuma linha em Queima ou Esquente. Preencha o mapa primeiro."; return; }
-      setState(first, "QUEIMA");
-      fireNote.textContent = "A linha " + first + " virou Queima. Confira no mapa e salve.";
-    } else {
-      const head = burning.filter(n => stateOf(next(n)) !== "QUEIMA").at(-1);
-      const following = next(head), burns = ["ESQUENTE", "CRU"].includes(stateOf(following));
-      burning.forEach(n => setState(n, "ASSADO"));
-      if (burns) setState(following, "QUEIMA");
-      fireNote.textContent = (burning.length === 1 ? "A linha " + burning[0] + " virou Assado" : "As linhas " + burning.join(", ") + " viraram Assado")
-        + (burns ? " e a linha " + following + " virou Queima. Confira no mapa e salve."
-                 : ". A linha " + following + " não está em Esquente nem Cru, então nenhuma linha passou para Queima. Confira no mapa.");
-    }
+    for (let n = 1; n < target; n++) if (["ESQUENTE", "QUEIMA"].includes(line(n, "estado").value)) setState(n, "ASSADO");
+    setState(target, "QUEIMA");
+    for (let n = target + 1; n <= total; n++) if (line(n, "estado").value === "QUEIMA") setState(n, "ESQUENTE");
     undoSteps.push(before); undoFire.hidden = false;
-  });
+    fireNote.textContent = "Fogo na linha " + target + ". As linhas em esquente antes dela ficaram Assado. Confira no mapa e salve.";
+  }));
   undoFire.addEventListener("click", () => {
     const before = undoSteps.pop();
     if (!before) return;
     before.forEach((value, i) => { const state = line(i + 1, "estado"); state.value = value; paint(state); });
     clearChanged();
     undoFire.hidden = undoSteps.length === 0;
-    fireNote.textContent = "Voltou como estava antes desse clique.";
+    fireNote.textContent = "Voltou como estava antes desse toque.";
+  });
+  // The quantity follows the brick's reference when the brick changes; an empty line has none.
+  const reference = select => (select.selectedOptions[0] && select.selectedOptions[0].dataset.referencia) || "";
+  kilnForm.querySelectorAll("[data-linha-tijolo]").forEach(select => select.addEventListener("change", () => {
+    const quantity = line(select.name.match(/\d+/)[0], "quantidade");
+    if (quantity) quantity.value = select.value === "" ? "" : reference(select);
+  }));
+  fill.querySelector("[data-aplicar]").addEventListener("click", () => {
+    const brick = fill.querySelector("[data-tijolo]");
+    const from = Number(fill.querySelector("[data-de]").value), to = Number(fill.querySelector("[data-ate]").value) || from;
+    for (let n = Math.min(from, to); n <= Math.max(from, to); n++) {
+      const quantity = line(n, "quantidade");
+      if (quantity) quantity.value = brick.value === "" ? "" : reference(brick);
+    }
   });
 }

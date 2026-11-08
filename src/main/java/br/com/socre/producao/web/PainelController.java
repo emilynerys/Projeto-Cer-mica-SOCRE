@@ -19,11 +19,11 @@ import org.springframework.web.server.ResponseStatusException;
 public class PainelController {
     private final MarombaRepository registros; private final UnidadeRepository unidades; private final ProducaoService service;
     private final EnfornaRepository enfornas; private final DesenfornaRepository desenfornas; private final FornadaService fornadas;
-    private final FormatoRepository formatos; private final InventarioRepository inventarios; private final Clock clock;
+    private final FormatoRepository formatos; private final InventarioRepository inventarios; private final Clock clock; private final PanoramaService panorama;
     public PainelController(MarombaRepository registros, UnidadeRepository unidades, ProducaoService service, EnfornaRepository enfornas,
-            DesenfornaRepository desenfornas, FornadaService fornadas, FormatoRepository formatos, InventarioRepository inventarios, Clock clock) {
+            DesenfornaRepository desenfornas, FornadaService fornadas, FormatoRepository formatos, InventarioRepository inventarios, Clock clock, PanoramaService panorama) {
         this.registros = registros; this.unidades = unidades; this.service = service; this.enfornas = enfornas; this.desenfornas = desenfornas;
-        this.fornadas = fornadas; this.formatos = formatos; this.inventarios = inventarios; this.clock = clock;
+        this.fornadas = fornadas; this.formatos = formatos; this.inventarios = inventarios; this.clock = clock; this.panorama = panorama;
     }
     /** What one load produced and how its quality compares with the load before it (in percentage points). */
     public record PorFornada(Balanco balanco, String unidade, Integer ocupacao, Double primeira, Double segunda, Double cru,
@@ -84,6 +84,7 @@ public class PainelController {
         model.addAttribute("etapaSelecionada", d.etapa()); model.addAttribute("formatoSelecionado", formato);
         model.addAttribute("opcoesEtapa", ETAPAS); model.addAttribute("opcoesFormato", formatos.findAllByOrderByNome());
         model.addAttribute("atalhos", atalhos(unidade));
+        model.addAttribute("panorama", panorama.de(p.unidadeId()));
         return "painel";
     }
     /** RF27: the screen as a file, with the same filters. */

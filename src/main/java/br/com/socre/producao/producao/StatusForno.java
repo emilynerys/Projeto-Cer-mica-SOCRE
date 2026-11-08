@@ -24,9 +24,9 @@ public class StatusForno {
         @Enumerated(EnumType.STRING) @Column(length = 12) private Estado estado;
         @Column(nullable = false) private int quantidade;
         protected Linha() {}
-        public Linha(int linha, Formato formato, Estado estado) {
-            this.linha = linha; this.formato = formato; this.estado = estado;
-            this.quantidade = formato == null ? 0 : formato.getTijolosPorLinha();
+        /** The quantity starts at the format reference; the Gestor changes it when the line was not filled. */
+        public Linha(int linha, Formato formato, Estado estado, int quantidade) {
+            this.linha = linha; this.formato = formato; this.estado = estado; this.quantidade = formato == null ? 0 : quantidade;
         }
         public int getLinha() { return linha; }
         public Formato getFormato() { return formato; }
@@ -42,11 +42,15 @@ public class StatusForno {
     @Column(name = "criado_em", nullable = false) private Instant criadoEm;
     @ElementCollection(fetch = FetchType.EAGER) @CollectionTable(name = "status_forno_linha", joinColumns = @JoinColumn(name = "id_status")) @OrderBy("linha")
     private List<Linha> linhas = new ArrayList<>();
+    /** The loads in progress when the map was saved: the map shows the whole kiln, so it never restarts when a load closes. */
+    @ManyToMany(fetch = FetchType.EAGER) @JoinTable(name = "status_forno_fornada", joinColumns = @JoinColumn(name = "id_status"), inverseJoinColumns = @JoinColumn(name = "id_fornada"))
+    private Set<Fornada> fornadas = new HashSet<>();
     protected StatusForno() {}
-    public StatusForno(Unidade unidade, Usuario autor, Instant dataHora, String observacao, List<Linha> linhas, Instant criadoEm) {
+    public StatusForno(Unidade unidade, Usuario autor, Instant dataHora, String observacao, List<Linha> linhas, Collection<Fornada> fornadas, Instant criadoEm) {
         this.id = UUID.randomUUID(); this.unidade = unidade; this.autor = autor; this.dataHora = dataHora;
-        this.observacao = observacao; this.linhas.addAll(linhas); this.criadoEm = criadoEm;
+        this.observacao = observacao; this.linhas.addAll(linhas); this.fornadas.addAll(fornadas); this.criadoEm = criadoEm;
     }
+    public List<Fornada> getFornadas() { return fornadas.stream().sorted(Comparator.comparing(Fornada::getMes).thenComparing(Fornada::getNumero)).toList(); }
     public String retrato() {
         var cheias = linhas.stream().filter(l -> !l.isVazia()).map(l -> l.getLinha() + ":" + l.getFormato().getSigla() + l.getEstado().getLetra()).toList();
         return "Status do Forno · " + (cheias.isEmpty() ? "forno vazio" : String.join(" ", cheias)) + (observacao == null ? "" : " · " + observacao);

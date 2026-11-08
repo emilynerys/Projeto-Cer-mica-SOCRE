@@ -1,0 +1,39 @@
+<!DOCTYPE html><html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"><head th:replace="~{fragments/layout :: head('Estoque')}"></head>
+<body><header th:replace="~{fragments/layout :: header}"></header><main class="container">
+  <div class="page-heading"><div><p class="eyebrow" th:text="${unidade.nome}"></p><h1>Estoque assado</h1><p class="muted">Tijolo já queimado: o que está pronto no pátio e o que ainda está assado dentro do forno.</p></div></div>
+  <th:block th:replace="~{fragments/panorama :: quadros(${panorama})}"></th:block>
+  <div class="notice success" role="status" th:if="${sucesso}" th:text="${sucesso}"></div><div class="notice error" role="alert" th:if="${falha}" th:text="${falha}"></div>
+
+  <section class="panel records-panel"><div class="section-heading"><h2>Estoque agora</h2><span class="muted">Unidade: tijolos</span></div>
+    <div class="table-wrap"><table class="stock-table"><thead><tr><th>Tijolo</th><th>No pátio</th><th>No forno</th></tr></thead><tbody>
+      <th:block th:each="l : ${quadro.linhas}">
+        <tr><td data-label="Tijolo" th:text="${l.formato.sigla + ' 1ª'}"></td><td data-label="No pátio" th:text="${l.patioPrimeira == null ? '—' : fmt.inteiro(l.patioPrimeira)}"></td><td data-label="No forno" class="stock-kiln" th:text="${fmt.inteiro(l.forno)}"></td></tr>
+        <tr><td data-label="Tijolo" th:text="${l.formato.sigla + ' 2ª'}"></td><td data-label="No pátio" th:text="${l.patioSegunda == null ? '—' : fmt.inteiro(l.patioSegunda)}"></td><td data-label="No forno" class="stock-kiln">0</td></tr>
+      </th:block>
+    </tbody></table></div>
+    <p class="field-help stock-note"><span th:text="${quadro.contagem == null ? 'O pátio ainda não foi contado.' : 'Pátio: contagem de ' + fmt.data(quadro.contagem.data) + ', lançada por ' + quadro.contagem.autor.nome + '.'}"></span>
+      <span th:text="${quadro.mapa == null ? ' Forno: nenhum Status do Forno lançado.' : ' Forno: linhas assadas do Status do Forno de ' + fmt.horario(quadro.mapa.dataHora) + ', contadas como 1ª porque a qualidade só se sabe na Desenforna.'}"></span></p>
+  </section>
+
+  <form th:if="${podeLancar}" method="post" th:action="@{/estoque}" class="panel form-panel stack">
+    <h2>Lançar a contagem do pátio</h2>
+    <input type="hidden" name="unidade" th:value="${unidade.id}">
+    <label for="data" class="stock-date">Data da contagem<input type="date" id="data" name="data" th:value="${hoje}" th:max="${hoje}" required></label>
+    <div class="stock-grid">
+      <th:block th:each="f : ${formatos}">
+        <label><span th:text="${f.sigla + ' 1ª'}"></span><input type="text" inputmode="numeric" th:name="${'primeira-' + f.id}" placeholder="0"></label>
+        <label><span th:text="${f.sigla + ' 2ª'}"></span><input type="text" inputmode="numeric" th:name="${'segunda-' + f.id}" placeholder="0"></label>
+      </th:block>
+    </div>
+    <p class="field-help">Campo em branco conta como zero. A contagem nova não apaga as anteriores.</p>
+    <div class="actions"><button class="button primary" type="submit">Salvar contagem</button></div>
+  </form>
+
+  <h2>Contagens anteriores</h2>
+  <section class="panel records-panel"><div class="empty-state" th:if="${historico.empty}"><p>Nenhuma contagem lançada ainda.</p></div>
+    <div class="table-wrap" th:unless="${historico.empty}"><table><thead><tr><th>Data</th><th:block th:each="f : ${formatos}"><th th:text="${f.sigla + ' 1ª'}"></th><th th:text="${f.sigla + ' 2ª'}"></th></th:block><th>Lançado por</th></tr></thead><tbody>
+      <tr th:each="c : ${historico}"><td data-label="Data" th:text="${fmt.data(c.data)}"></td>
+        <th:block th:each="f : ${formatos}" th:with="i=${c.item(f.id).orElse(null)}"><td th:attr="data-label=${f.sigla + ' 1ª'}" th:text="${i == null ? '—' : fmt.inteiro(i.primeira)}"></td><td th:attr="data-label=${f.sigla + ' 2ª'}" th:text="${i == null ? '—' : fmt.inteiro(i.segunda)}"></td></th:block>
+        <td data-label="Lançado por" th:text="${c.autor.nome}"></td></tr>
+    </tbody></table></div></section>
+</main><footer th:replace="~{fragments/layout :: footer}"></footer></body></html>

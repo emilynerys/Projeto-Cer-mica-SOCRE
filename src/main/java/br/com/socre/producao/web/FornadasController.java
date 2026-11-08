@@ -16,8 +16,13 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 // Furnace loads of a unit: what went in and out, firing times and the manager's conclusion.
 @Controller @RequestMapping("/fornadas")
 public class FornadasController {
-    private final FornadaService fornadas; private final UnidadeRepository unidades;
-    public FornadasController(FornadaService fornadas, UnidadeRepository unidades) { this.fornadas = fornadas; this.unidades = unidades; }
+    private final FornadaService fornadas; private final UnidadeRepository unidades; private final EnfornaRepository enfornas; private final DesenfornaRepository desenfornas;
+    private final StatusFornoRepository mapas; private final ProducaoService producao; private final PanoramaService panorama;
+    public FornadasController(FornadaService fornadas, UnidadeRepository unidades, EnfornaRepository enfornas, DesenfornaRepository desenfornas,
+            StatusFornoRepository mapas, ProducaoService producao, PanoramaService panorama) {
+        this.fornadas = fornadas; this.unidades = unidades; this.enfornas = enfornas; this.desenfornas = desenfornas;
+        this.mapas = mapas; this.producao = producao; this.panorama = panorama;
+    }
 
     @GetMapping String lista(@AuthenticationPrincipal UsuarioAutenticado p, @RequestParam(required = false) UUID unidade, Model model) {
         var todas = unidades.findAllByOrderByNome();
@@ -30,10 +35,21 @@ public class FornadasController {
             var concluidas = fornadas.recentes(escolhida, 12).stream().filter(f -> !f.isEmAndamento()).limit(6)
                 .map(f -> fornadas.balanco(f.getId(), p)).toList();
             model.addAttribute("emAndamento", emAndamento); model.addAttribute("concluidas", concluidas);
+            // Each load in progress lists its records (newest first) and the kiln maps saved while it was open.
+            var lancamentos = new HashMap<UUID, List<RegistroEtapa>>(); var mapasDaFornada = new HashMap<UUID, List<StatusForno>>();
+            for (var b : emAndamento) {
+                var lista = new ArrayList<RegistroEtapa>(enfornas.daFornada(b.fornada().getId())); lista.addAll(desenfornas.daFornada(b.fornada().getId()));
+                lista.sort(Comparator.comparing(RegistroEtapa::getData).reversed().thenComparing(RegistroEtapa::getEtapa).thenComparing(r -> r.getFormato().getNome()));
+                lancamentos.put(b.fornada().getId(), lista);
+                mapasDaFornada.put(b.fornada().getId(), mapas.daFornada(b.fornada().getId(), org.springframework.data.domain.PageRequest.of(0, 10)));
+            }
+            model.addAttribute("lancamentos", lancamentos); model.addAttribute("mapasDaFornada", mapasDaFornada);
         }
         // RN08: the Gestor de Produção opens, closes and marks the firing times; the other profiles only read.
         boolean gestor = p.perfil() == Perfil.GESTOR_PRODUCAO;
-        model.addAttribute("podeRegistrarMarco", gestor); model.addAttribute("podeConcluir", gestor);
+        model.addAttribute("podeRegistrarMarco", gestor); model.addAttribute("podeConcluir", gestor); model.addAttribute("podeCorrigir", gestor);
+        model.addAttribute("motivosCorrecao", producao.motivos(Motivo.Tipo.CORRECAO));
+        model.addAttribute("panorama", panorama.de(p.perfil() == Perfil.REGISTRO_PRODUCAO ? p.unidadeId() : escolhida));
         model.addAttribute("podeAbrir", gestor && escolhida != null && fornadas.podeAbrirNova(escolhida));
         model.addAttribute("marcos", Fornada.Marco.manuais());
         model.addAttribute("agora", LocalDateTime.now(RegistroApoio.FUSO).withSecond(0).withNano(0));
