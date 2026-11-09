@@ -22,8 +22,8 @@ public class EnfornaService extends EtapaService<Enforna> {
 
     @Transactional
     public List<Enforna> criar(UsuarioAutenticado p, EnfornaForm f) {
-        var autor = apoio.comPerfil(p, Perfil.REGISTRO_PRODUCAO);
-        var unidade = autor.getUnidade();
+        var autor = apoio.quemLanca(p);
+        var unidade = apoio.unidadeDeTrabalho(autor);
         if (f.getChaveEnvio() == null) throw new RegraNegocioException("Abra novamente o formulário para gerar um identificador de envio.");
         apoio.conferirData(unidade, f.getData());
         var linhas = new ArrayList<Linha>();
@@ -59,7 +59,7 @@ public class EnfornaService extends EtapaService<Enforna> {
             criados.add(enfornas.saveAndFlush(new Enforna(fornada, l.formato(), autor, f.getData(), l.linhas(), l.tijolosPorLinha(),
                 l.quantidade(), f.getChaveEnvio(), impressao, apoio.agora())));
         }
-        for (var e : criados) apoio.auditar(e, autor, "CRIACAO", null);
+        for (var e : criados) { apoio.auditar(e, autor, "CRIACAO", null); apoio.validarSeGestor(e, autor); }
         return criados;
     }
     @Transactional

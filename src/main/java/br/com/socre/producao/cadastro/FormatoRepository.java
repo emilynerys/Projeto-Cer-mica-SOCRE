@@ -3,4 +3,7 @@ import java.util.*;
 import org.springframework.data.jpa.repository.JpaRepository;
 public interface FormatoRepository extends JpaRepository<Formato, UUID> {
     List<Formato> findByAtivoTrueOrderByNome();
+    List<Formato> findAllByOrderByNome();
+    Optional<Formato> findByNomeIgnoreCase(String nome);
+    long countByAtivoTrue();
 }

@@ -15,7 +15,7 @@ import org.springframework.session.web.http.*;
 public class SecurityConfig {
     @Bean PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(12); }
     @Bean UserDetailsService userDetailsService(UsuarioRepository usuarios) {
-        return email -> usuarios.findByEmailIgnoreCase(email.strip()).filter(Usuario::podeEntrar)
+        return login -> usuarios.findByLoginIgnoreCase(login.strip()).filter(Usuario::podeEntrar)
                 .map(UsuarioAutenticado::from).orElseThrow(() -> new UsernameNotFoundException("Credenciais inválidas"));
     }
     @Bean CookieSerializer cookieSerializer(@Value("${socre.secure-cookie}") boolean secure) {
@@ -31,16 +31,23 @@ public class SecurityConfig {
                 .requestMatchers("/login", "/css/**", "/js/**", "/error", "/favicon.svg").permitAll()
                 .requestMatchers("/admin/**").hasRole("ADMINISTRADOR")
                 .requestMatchers("/painel/**").hasAnyRole("GESTOR_PRODUCAO", "GESTOR_GERAL")
-                .requestMatchers("/lancamentos", "/producao/maromba", "/producao/maromba/**", "/producao/enforna/nova", "/producao/desenforna/nova").hasRole("REGISTRO_PRODUCAO")
+                .requestMatchers("/lancamentos", "/producao/maromba", "/producao/maromba/**", "/producao/enforna/nova", "/producao/desenforna/nova").hasAnyRole("REGISTRO_PRODUCAO", "GESTOR_PRODUCAO")
                 .requestMatchers("/producao/validar-lote").hasRole("GESTOR_PRODUCAO")
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/fornadas/**").hasAnyRole("REGISTRO_PRODUCAO", "GESTOR_PRODUCAO", "GESTOR_GERAL", "ADMINISTRADOR")
                 // RN08: only the Gestor de Produção opens and closes loads and marks the firing times.
                 .requestMatchers("/fornadas/**").hasRole("GESTOR_PRODUCAO")
+                // Status do Forno: every profile reads the kiln map; only the Gestor de Produção types the operator's paper.
+                .requestMatchers("/status-forno/novo").hasRole("GESTOR_PRODUCAO")
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/status-forno").hasAnyRole("REGISTRO_PRODUCAO", "GESTOR_PRODUCAO", "GESTOR_GERAL", "ADMINISTRADOR")
+                .requestMatchers("/status-forno/**").hasRole("GESTOR_PRODUCAO")
+                // Estoque: the Gestor de Produção counts the yard; the Gestor Geral and the Administrador read it.
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/estoque").hasAnyRole("GESTOR_PRODUCAO", "GESTOR_GERAL", "ADMINISTRADOR")
+                .requestMatchers("/estoque", "/estoque/**").hasRole("GESTOR_PRODUCAO")
                 // RN05: the Administrador reads production data but never writes it.
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/producao/**").hasAnyRole("REGISTRO_PRODUCAO", "GESTOR_PRODUCAO", "GESTOR_GERAL", "ADMINISTRADOR")
                 .requestMatchers("/producao/**").hasAnyRole("REGISTRO_PRODUCAO", "GESTOR_PRODUCAO", "GESTOR_GERAL")
                 .anyRequest().authenticated())
-            .formLogin(login -> login.loginPage("/login").usernameParameter("email")
+            .formLogin(login -> login.loginPage("/login").usernameParameter("login")
                 .successHandler((req, res, auth) -> {
                     var p = (UsuarioAutenticado) auth.getPrincipal();
                     var session = req.getSession();

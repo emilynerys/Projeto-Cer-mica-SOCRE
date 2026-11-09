@@ -7,16 +7,16 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 // Only immutable scalar data is kept in the persistent HTTP session.
-public record UsuarioAutenticado(UUID id, String nome, String email, String password,
+public record UsuarioAutenticado(UUID id, String nome, String login, String password,
         Perfil perfil, UUID unidadeId, int versaoAcesso) implements UserDetails, Serializable {
     public static UsuarioAutenticado from(Usuario u) {
-        return new UsuarioAutenticado(u.getId(), u.getNome(), u.getEmail(), u.getSenhaHash(),
+        return new UsuarioAutenticado(u.getId(), u.getNome(), u.getLogin(), u.getSenhaHash(),
                 u.getPerfil(), u.getUnidade() == null ? null : u.getUnidade().getId(), u.getVersaoAcesso());
     }
     @Override public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("ROLE_" + perfil.name()));
     }
-    @Override public String getUsername() { return email; }
+    @Override public String getUsername() { return login; }
     @Override public String getPassword() { return password; }
     public String getNome() { return nome; }
     public Perfil getPerfil() { return perfil; }

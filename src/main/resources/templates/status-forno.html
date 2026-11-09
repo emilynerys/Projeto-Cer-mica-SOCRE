@@ -1,0 +1,71 @@
+<!DOCTYPE html><html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"><head th:replace="~{fragments/layout :: head('Status do Forno')}"></head>
+<body><header th:replace="~{fragments/layout :: header}"></header><main class="container">
+  <div class="page-heading"><div><p class="eyebrow">Forno</p><h1>Status do Forno</h1><p class="muted">O forno linha por linha, como no papel do forneiro. O Gestor de Produção lança cada status novo.</p></div>
+    <div class="actions">
+      <form method="get" th:action="@{/status-forno}" class="inline-form" th:if="${usuarioAtual.perfil.name() != 'REGISTRO_PRODUCAO' and unidades.size() > 1}"><label>Unidade<select name="unidade" data-auto-submit><option th:each="u : ${unidades}" th:value="${u.id}" th:text="${u.nome}" th:selected="${u.id == unidadeSelecionada}"></option></select></label><noscript><button class="button secondary" type="submit">Ver</button></noscript></form>
+      <a th:if="${podeLancar and unidadeSelecionada != null}" class="button primary" th:href="@{/status-forno/novo(unidade=${unidadeSelecionada})}"><span aria-hidden="true">+</span> Lançar status</a>
+    </div>
+  </div>
+  <div class="notice success" role="status" th:if="${sucesso}" th:text="${sucesso}"></div>
+
+  <div class="panel empty-state" th:if="${atual == null}"><span class="empty-mark" aria-hidden="true">▦</span><h3>Nenhum status lançado ainda</h3>
+    <p th:text="${podeLancar ? 'Quando o papel do forneiro chegar, lance o status para ver o mapa do forno.' : 'O Gestor de Produção lança o status quando recebe o papel do forneiro.'}"></p></div>
+
+  <th:block th:if="${atual != null}">
+  <section class="panel form-panel">
+    <div class="section-heading flush"><h2 th:text="${'Status de ' + fmt.horario(atual.dataHora)}"></h2>
+      <span class="badge" th:classappend="${atual.id == historico[0].id ? 'validated' : 'pending'}" th:text="${atual.id == historico[0].id ? 'Mais recente' : 'Status anterior'}"></span></div>
+    <p class="field-help">Lançado por <strong th:text="${atual.autor.nome}"></strong>.</p>
+    <p class="field-help" th:unless="${atual.fornadas.empty}">Fornadas em andamento neste mapa: <strong th:text="${#strings.listJoin(atual.fornadas.![identificacao], ' e ')}"></strong>.</p>
+    <p class="kiln-note" th:if="${atual.observacao != null}" th:text="${atual.observacao}"></p>
+
+    <div class="kiln-check" th:if="${conferencia != null}" data-conferencia>
+      <p class="field-help" th:if="${conferencia.fornadas.isEmpty()}">Nenhuma fornada em andamento para comparar com o mapa.</p>
+      <th:block th:unless="${conferencia.fornadas.isEmpty()}">
+        <div class="notice" th:classappend="${conferencia.bate() ? 'success' : 'warning'}" role="status"><span th:text="${conferencia.mensagem()}"></span>
+          <ul th:unless="${conferencia.bate()}"><li th:each="l : ${conferencia.formatos}" th:unless="${l.bate()}" th:text="|${l.formato.sigla}: ${l.pelasFornadas} pelas fornadas, ${l.noMapa} no mapa|"></li></ul></div>
+        <p class="field-help">Fornadas no forno: <span th:text="${conferencia.fornadasNoForno()}"></span>. A conta usa tudo o que já foi lançado até agora, e o mapa é o papel da data acima.</p>
+      </th:block>
+    </div>
+
+    <div class="kiln-layout">
+      <div class="kiln-map table-wrap"><table>
+        <caption class="sr-only">Linhas do forno: lado esquerdo e lado direito</caption>
+        <thead><tr><th colspan="4" scope="colgroup">Esquerda</th><th colspan="4" scope="colgroup" class="kiln-side">Direita</th></tr>
+          <tr><th scope="col">Status</th><th scope="col">Tijolo</th><th scope="col">Linha</th><th scope="col">Qtde</th>
+            <th scope="col" class="kiln-side">Qtde</th><th scope="col">Linha</th><th scope="col">Tijolo</th><th scope="col">Status</th></tr></thead>
+        <tbody><tr th:each="f : ${fileiras}">
+          <th:block th:with="c=${f.esquerda}"><th:block th:if="${c != null}">
+            <td class="kiln-state" th:attr="data-estado=${c.estado}" th:title="${c.estado == null ? 'Vazio' : c.estado.descricao}" th:text="${c.estado == null ? '' : c.estado.letra}"></td>
+            <td th:text="${c.formato == null ? 'V' : c.formato.sigla}"></td><th scope="row" class="kiln-line" th:text="${c.linha}"></th>
+            <td class="kiln-qty" th:text="${fmt.inteiro(c.quantidade)}"></td></th:block>
+            <td th:if="${c == null}" colspan="4"></td></th:block>
+          <th:block th:with="c=${f.direita}">
+            <td class="kiln-qty kiln-side" th:text="${fmt.inteiro(c.quantidade)}"></td><th scope="row" class="kiln-line" th:text="${c.linha}"></th>
+            <td th:text="${c.formato == null ? 'V' : c.formato.sigla}"></td>
+            <td class="kiln-state" th:attr="data-estado=${c.estado}" th:title="${c.estado == null ? 'Vazio' : c.estado.descricao}" th:text="${c.estado == null ? '' : c.estado.letra}"></td></th:block>
+        </tr></tbody>
+      </table></div>
+
+      <div class="kiln-side-panel">
+        <h3>Resumo</h3>
+        <div class="table-wrap"><table class="kiln-summary"><thead><tr><th scope="col">Situação</th><th scope="col" th:each="pf : ${resumo.formatos}" th:text="${pf.formato.sigla}"></th><th scope="col">Total</th></tr></thead><tbody>
+          <tr th:each="e : ${estados}"><th scope="row"><span class="kiln-state" th:attr="data-estado=${e}" th:text="${e.letra}"></span> <span th:text="${e.descricao}"></span></th>
+            <td th:each="pf : ${resumo.formatos}" th:attr="data-label=${pf.formato.sigla}" th:text="${fmt.inteiro(pf.tijolos(e))}"></td>
+            <td data-label="Total" th:text="${fmt.inteiro(resumo.tijolos(e))}"></td></tr>
+          <tr class="total-row"><th scope="row">Soma</th><td th:each="pf : ${resumo.formatos}" th:attr="data-label=${pf.formato.sigla}" th:text="${fmt.inteiro(pf.total())}"></td>
+            <td data-label="Total" th:text="${fmt.inteiro(resumo.total())}"></td></tr>
+        </tbody></table></div>
+        <p class="field-help"><span th:text="${resumo.vazias}"></span> <span th:text="${resumo.vazias == 1 ? 'linha vazia' : 'linhas vazias'}"></span> (V). Quantidades em tijolos, pela referência de cada formato.</p>
+      </div>
+    </div>
+  </section>
+
+  <h2>Status anteriores</h2>
+  <section class="panel records-panel"><div class="table-wrap"><table><thead><tr><th>Data e hora</th><th>Lançado por</th><th>Observação</th><th><span class="sr-only">Ação</span></th></tr></thead><tbody>
+    <tr th:each="s : ${historico}"><td data-label="Data e hora" th:text="${fmt.horario(s.dataHora)}"></td><td data-label="Lançado por" th:text="${s.autor.nome}"></td>
+      <td data-label="Observação" th:text="${s.observacao == null ? '—' : s.observacao}"></td>
+      <td><span th:if="${s.id == atual.id}" class="muted">Na tela</span><a th:unless="${s.id == atual.id}" th:href="@{/status-forno(id=${s.id})}">Ver</a></td></tr>
+  </tbody></table></div></section>
+  </th:block>
+</main><footer th:replace="~{fragments/layout :: footer}"></footer></body></html>

@@ -37,10 +37,20 @@ public class EventoAuditoria {
             case "IMPORTACAO" -> "Registro importado";
             case "MARCO" -> "Horário da queima registrado";
             case "CONCLUSAO" -> "Fornada concluída";
+            case "SENHA_REDEFINIDA" -> "Senha redefinida";
             default -> "Registro validado";
         };
     }
     public String getCodigoAcao() { return acao; }
+    /** What the event is about, in the words of the screens. */
+    public String getAssunto() {
+        return switch (tabela) {
+            case "maromba" -> "Maromba"; case "enforna" -> "Enforna"; case "desenforna" -> "Desenforna"; case "fornada" -> "Fornada";
+            case "status_forno" -> "Status do Forno"; case "estoque_patio" -> "Estoque do pátio"; case "usuario" -> "Conta de usuário";
+            case "formato" -> "Formato"; case "motivo" -> "Motivo"; case "unidade" -> "Unidade"; case "inventario_inicial" -> "Inventário inicial";
+            default -> tabela;
+        };
+    }
     public Usuario getUsuario() { return usuario; }
     public Instant getDataHora() { return dataHora; }
     public String getAntes() { return antes; }

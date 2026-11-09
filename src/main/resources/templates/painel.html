@@ -1,29 +1,73 @@
 <!DOCTYPE html><html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"><head th:replace="~{fragments/layout :: head('Indicadores')}"></head>
-<body><header th:replace="~{fragments/layout :: header}"></header><main class="container">
-  <div class="page-heading"><div><p class="eyebrow">Visão da produção</p><h1>Indicadores de produção</h1><p class="muted">Volumes conferidos e validados pelo Gestor de Produção.</p></div><span class="badge validated">Somente validados</span></div>
-  <section class="panel"><form th:action="@{/painel}" method="get" class="filters"><label>Unidade<select name="unidade"><option value="">Todas as unidades</option><option th:each="u : ${unidades}" th:value="${u.id}" th:text="${u.nome}" th:selected="${u.id == unidadeSelecionada}"></option></select></label><label>De<input type="date" name="inicio" th:value="${inicio}" required></label><label>Até<input type="date" name="fim" th:value="${fim}" required></label><button type="submit" class="button secondary">Atualizar painel</button></form></section>
+<body th:classappend="${tv} ? 'modo-tv'" th:attr="data-tv=${tv ? 'true' : null}"><header th:replace="~{fragments/layout :: header}"></header><main class="container" th:with="v=${d}">
+  <div class="page-heading"><div><p class="eyebrow">Visão da produção</p><h1>Indicadores de produção</h1><p class="muted">Volumes conferidos e validados pelo Gestor de Produção.</p></div><div class="actions"><span class="badge validated">Somente validados</span><a class="button secondary" th:unless="${tv}" th:href="@{/painel/relatorio.pdf(inicio=${inicio},fim=${fim},unidade=${unidadeSelecionada},etapa=${etapaSelecionada},formato=${formatoSelecionado})}">Exportar PDF</a><a class="button secondary" th:unless="${tv}" th:href="@{/painel(inicio=${inicio},fim=${fim},unidade=${unidadeSelecionada},etapa=${etapaSelecionada},formato=${formatoSelecionado},tv=true)}">Tela cheia</a><a class="button secondary" th:if="${tv}" th:href="@{/painel(inicio=${inicio},fim=${fim},unidade=${unidadeSelecionada},etapa=${etapaSelecionada},formato=${formatoSelecionado})}">Sair da tela cheia</a></div></div>
+  <th:block th:replace="~{fragments/panorama :: quadros(${panorama})}"></th:block>
+  <section class="panel"><form th:action="@{/painel}" method="get" class="filters painel-filters"><label th:if="${unidades.size() > 1}">Unidade<select name="unidade"><option value="">Todas as unidades</option><option th:each="u : ${unidades}" th:value="${u.id}" th:text="${u.nome}" th:selected="${u.id == unidadeSelecionada}"></option></select></label><label>De<input type="date" name="inicio" th:value="${inicio}" required></label><label>Até<input type="date" name="fim" th:value="${fim}" required></label><label>Etapa<select name="etapa"><option value="">Todas</option><option th:each="e : ${opcoesEtapa}" th:value="${e.key}" th:text="${e.value}" th:selected="${e.key == etapaSelecionada}"></option></select></label><label>Formato<select name="formato"><option value="">Todos</option><option th:each="f : ${opcoesFormato}" th:value="${f.id}" th:text="${f.nome}" th:selected="${f.id == formatoSelecionado}"></option></select></label><button type="submit" class="button secondary">Atualizar painel</button></form>
+    <nav class="period-links" aria-label="Períodos prontos"><span class="muted">Período:</span><a th:each="a : ${atalhos}" class="button quiet" th:classappend="${a.inicio == inicio and a.fim == fim ? 'period-current' : ''}" th:attr="aria-current=${a.inicio == inicio and a.fim == fim ? 'true' : null}" th:href="@{/painel(inicio=${a.inicio},fim=${a.fim},unidade=${unidadeSelecionada},etapa=${etapaSelecionada},formato=${formatoSelecionado})}" th:text="${a.nome}"></a></nav></section>
+
+  <script type="application/json" id="dados-painel" th:utext="${graficos}"></script>
+  <section class="dash" aria-label="Painel de indicadores">
+    <div class="dash-cards">
+      <div class="dash-card" th:each="c : ${cartoes}"><span th:text="${c.nome}"></span><strong th:text="${c.valor}"></strong><small th:text="${c.detalhe}"></small>
+        <em class="dash-trend" th:classappend="${c.tendencia.startsWith('sem') ? '' : (c.melhorou ? 'up' : 'down')}" th:text="${c.tendencia}"></em></div>
+    </div>
+    <div class="dash-gauges">
+      <div class="panel dash-gauge"><h3>Qualidade da queima</h3><div class="dash-gauge-canvas"><canvas id="g-qualidade" role="img" aria-label="Porcentagem de 1ª qualidade no período"></canvas></div><strong data-gauge="qualidade">—</strong><small data-gauge-nota="qualidade">% de 1ª do que saiu do forno no período</small></div>
+      <div class="panel dash-gauge"><h3>Ocupação do forno</h3><div class="dash-gauge-canvas"><canvas id="g-ocupacao" role="img" aria-label="Ocupação da fornada que está enchendo"></canvas></div><strong data-gauge="ocupacao">—</strong><small data-gauge-nota="ocupacao">da fornada que está enchendo, sobre as linhas que cabem</small></div>
+      <div class="panel dash-gauge"><h3>Velocidade da queima</h3><div class="dash-gauge-canvas"><canvas id="g-velocidade" role="img" aria-label="Linhas queimadas por 24 horas"></canvas></div><strong data-gauge="velocidade">—</strong><small data-gauge-nota="velocidade">linhas por 24 horas na última fornada medida</small></div>
+    </div>
+    <div class="dash-charts">
+      <section class="panel dash-chart dash-wide"><div class="dash-chart-head"><h3>Produção por dia</h3><small>milheiros · as etapas ficam lado a lado e não se somam</small></div><div class="dash-canvas"><canvas id="c-producao" role="img" aria-label="Maromba, Enforna e Desenforna por dia"></canvas></div></section>
+      <section class="panel dash-chart"><div class="dash-chart-head"><h3>Qualidade por fornada</h3><small>% do que saiu de cada fornada</small></div><div class="dash-canvas"><canvas id="c-qualidade" role="img" aria-label="1ª, 2ª e Cru das últimas fornadas"></canvas></div></section>
+      <section class="panel dash-chart"><div class="dash-chart-head"><h3>Movimento do pátio por semana</h3><small>milheiros · Maromba que entrou x Enforna que saiu</small></div><div class="dash-canvas"><canvas id="c-patio" role="img" aria-label="Maromba e Enforna por semana"></canvas></div></section>
+      <section class="panel dash-chart dash-wide"><div class="dash-chart-head"><h3>Estoque assado</h3><small>milheiros · pátio pela última contagem, forno pelo último Status do Forno</small></div><div class="dash-canvas dash-canvas-low"><canvas id="c-estoque" role="img" aria-label="Estoque assado no pátio e no forno"></canvas></div></section>
+    </div>
+    <p class="explanation">Os volumes contam só lançamentos validados. As setas comparam com o mesmo número de dias logo antes do período escolhido.</p>
+  </section>
+  <h2 class="dash-detail-title">Detalhes</h2>
+
+
+  <th:block th:if="${v.verMaromba()}">
   <div class="metric-grid"><section class="metric accent"><span>Maromba no período</span><strong th:text="${fmt.milheiros(total)}"></strong><small>milheiros · <span th:text="${fmt.inteiro(total)}"></span> tijolos</small></section><section class="metric" th:each="formato : ${formatos}"><span th:text="${formato.nome}"></span><strong th:text="${fmt.milheiros(totalPorFormato.getOrDefault(formato.id, 0L))}"></strong><small>milheiros</small></section></div>
   <p class="explanation">Estes volumes representam a etapa de Maromba. Não equivalem à produção acabada.</p>
+  </th:block>
+
+  <th:block th:if="${v.verFornadas()}">
   <h2>Forno no período</h2>
   <div class="stage-grid">
-    <section class="metric"><span>Enforna</span><strong th:text="${fmt.milheiros(etapasTotal.enforna)}"></strong><small th:text="${'milheiros · ' + fmt.inteiro(etapasTotal.linhasEnfornadas) + ' linhas'}"></small></section>
+    <section class="metric" th:if="${v.verEnforna()}"><span>Enforna</span><strong th:text="${fmt.milheiros(etapasTotal.enforna)}"></strong><small th:text="${'milheiros · ' + fmt.inteiro(etapasTotal.linhasEnfornadas) + ' linhas'}"></small></section>
+    <th:block th:if="${v.verDesenforna()}">
     <section class="metric"><span>Desenforna</span><strong th:text="${fmt.milheiros(etapasTotal.desenfornado())}"></strong><small th:text="${'milheiros · ' + fmt.inteiro(etapasTotal.linhasDesenfornadas) + ' linhas'}"></small></section>
-    <section class="metric accent"><span>Produção acabada (1ª + 2ª)</span><strong th:text="${fmt.milheiros(etapasTotal.acabado())}"></strong><small>milheiros prontos para venda</small></section>
-    <section class="metric"><span>Cru que saiu do forno</span><strong th:text="${fmt.milheiros(etapasTotal.cru)}"></strong><small>milheiros · voltam a ser queimados</small></section>
-    <section class="metric"><span>1ª qualidade</span><strong th:text="${etapasTotal.percentualPrimeira() == null ? '—' : etapasTotal.percentualPrimeira() + '%'}"></strong><small>do que saiu do forno</small></section>
+    <section class="metric accent"><span>1ª qualidade</span><strong th:text="${fmt.milheiros(etapasTotal.primeira)}"></strong><small th:text="${'milheiros · ' + (etapasTotal.percentual(etapasTotal.primeira) == null ? '—' : etapasTotal.percentual(etapasTotal.primeira) + '%') + ' do que saiu do forno'}"></small></section>
+    <section class="metric"><span>2ª qualidade</span><strong th:text="${fmt.milheiros(etapasTotal.segunda)}"></strong><small th:text="${'milheiros · ' + (etapasTotal.percentual(etapasTotal.segunda) == null ? '—' : etapasTotal.percentual(etapasTotal.segunda) + '%') + ' do que saiu do forno'}"></small></section>
+    <section class="metric"><span>Cru que saiu do forno</span><strong th:text="${fmt.milheiros(etapasTotal.cru)}"></strong><small th:text="${'milheiros · ' + (etapasTotal.percentual(etapasTotal.cru) == null ? '—' : etapasTotal.percentual(etapasTotal.cru) + '%') + ' · fora da produção acabada'}"></small></section>
+    </th:block>
   </div>
-  <section class="panel records-panel"><div class="section-heading"><h2>Etapas por formato</h2><span class="muted">Unidade: milheiros</span></div><div class="table-wrap"><table><thead><tr><th>Formato</th><th>Maromba</th><th>Enforna</th><th>Desenfornado</th><th>1ª</th><th>2ª</th><th>Cru</th><th>Acabado</th></tr></thead><tbody>
-    <tr th:each="e : ${etapas}"><td data-label="Formato" th:text="${e.nome}"></td><td data-label="Maromba" th:text="${fmt.milheiros(e.maromba)}"></td><td data-label="Enforna" th:text="${fmt.milheiros(e.enforna)}"></td><td data-label="Desenfornado" th:text="${fmt.milheiros(e.desenfornado())}"></td><td data-label="1ª" th:text="${fmt.milheiros(e.primeira)}"></td><td data-label="2ª" th:text="${fmt.milheiros(e.segunda)}"></td><td data-label="Cru" th:text="${fmt.milheiros(e.cru)}"></td><td data-label="Acabado" th:text="${fmt.milheiros(e.acabado())}"></td></tr>
-    <tr class="total-row"><td data-label="Formato"><strong>Total</strong></td><td data-label="Maromba" th:text="${fmt.milheiros(etapasTotal.maromba)}"></td><td data-label="Enforna" th:text="${fmt.milheiros(etapasTotal.enforna)}"></td><td data-label="Desenfornado" th:text="${fmt.milheiros(etapasTotal.desenfornado())}"></td><td data-label="1ª" th:text="${fmt.milheiros(etapasTotal.primeira)}"></td><td data-label="2ª" th:text="${fmt.milheiros(etapasTotal.segunda)}"></td><td data-label="Cru" th:text="${fmt.milheiros(etapasTotal.cru)}"></td><td data-label="Acabado" th:text="${fmt.milheiros(etapasTotal.acabado())}"></td></tr>
+  </th:block>
+
+  <section class="panel records-panel"><div class="section-heading"><h2>Etapas por formato</h2><span class="muted">Unidade: milheiros</span></div><div class="table-wrap"><table><thead><tr><th>Formato</th><th th:if="${v.verMaromba()}">Maromba</th><th th:if="${v.verEnforna()}">Enforna</th><th:block th:if="${v.verDesenforna()}"><th>Desenfornado</th><th>1ª</th><th>2ª</th><th>Cru</th><th>Acabado</th></th:block></tr></thead><tbody>
+    <tr th:each="e : ${etapas}"><td data-label="Formato" th:text="${e.nome}"></td><td th:if="${v.verMaromba()}" data-label="Maromba" th:text="${fmt.milheiros(e.maromba)}"></td><td th:if="${v.verEnforna()}" data-label="Enforna" th:text="${fmt.milheiros(e.enforna)}"></td><th:block th:if="${v.verDesenforna()}"><td data-label="Desenfornado" th:text="${fmt.milheiros(e.desenfornado())}"></td><td data-label="1ª" th:text="${fmt.milheiros(e.primeira)}"></td><td data-label="2ª" th:text="${fmt.milheiros(e.segunda)}"></td><td data-label="Cru" th:text="${fmt.milheiros(e.cru)}"></td><td data-label="Acabado" th:text="${fmt.milheiros(e.acabado())}"></td></th:block></tr>
+    <tr class="total-row"><td data-label="Formato"><strong>Total</strong></td><td th:if="${v.verMaromba()}" data-label="Maromba" th:text="${fmt.milheiros(etapasTotal.maromba)}"></td><td th:if="${v.verEnforna()}" data-label="Enforna" th:text="${fmt.milheiros(etapasTotal.enforna)}"></td><th:block th:if="${v.verDesenforna()}"><td data-label="Desenfornado" th:text="${fmt.milheiros(etapasTotal.desenfornado())}"></td><td data-label="1ª" th:text="${fmt.milheiros(etapasTotal.primeira)}"></td><td data-label="2ª" th:text="${fmt.milheiros(etapasTotal.segunda)}"></td><td data-label="Cru" th:text="${fmt.milheiros(etapasTotal.cru)}"></td><td data-label="Acabado" th:text="${fmt.milheiros(etapasTotal.acabado())}"></td></th:block></tr>
   </tbody></table></div></section>
   <p class="explanation">Só entram registros validados.</p>
 
+  <th:block th:if="${v.verPatio()}">
+  <h2>Movimento do pátio</h2>
+  <section class="panel records-panel"><div class="section-heading"><h2>Maromba menos Enforna</h2><span class="muted">Unidade: milheiros</span></div><div class="table-wrap"><table><thead><tr><th>Formato</th><th>Maromba</th><th>Enforna</th><th>Movimento</th></tr></thead><tbody>
+    <tr th:each="e : ${etapas}"><td data-label="Formato" th:text="${e.nome}"></td><td data-label="Maromba" th:text="${fmt.milheiros(e.maromba)}"></td><td data-label="Enforna" th:text="${fmt.milheiros(e.enforna)}"></td><td data-label="Movimento" th:text="${fmt.milheiros(e.patio())}"></td></tr>
+    <tr class="total-row"><td data-label="Formato"><strong>Total</strong></td><td data-label="Maromba" th:text="${fmt.milheiros(etapasTotal.maromba)}"></td><td data-label="Enforna" th:text="${fmt.milheiros(etapasTotal.enforna)}"></td><td data-label="Movimento" th:text="${fmt.milheiros(etapasTotal.patio())}"></td></tr>
+  </tbody></table></div></section>
+  <p class="explanation">Não é estoque: o tijolo em secagem não é contado. O movimento mostra se a Maromba produziu mais ou menos do que o forno levou no período. É aproximado, porque as perdas na secagem não são registradas.</p>
+  </th:block>
+
+  <th:block th:if="${v.verFornadas()}">
   <h2>Produção por fornada</h2>
   <section class="panel records-panel"><div class="section-heading"><h2>Últimas fornadas</h2><span class="muted">Comparação com a fornada anterior</span></div>
     <div class="empty-state" th:if="${porFornada.empty}"><h3>Nenhuma fornada ainda</h3><p>As fornadas aparecem aqui quando o Gestor de Produção abrir a primeira.</p></div>
-    <div class="table-wrap" th:unless="${porFornada.empty}"><table><thead><tr><th>Fornada</th><th>Enfornado</th><th>Desenfornado</th><th>1ª qualidade</th><th>2ª qualidade</th><th>Cru</th></tr></thead><tbody>
+    <div class="table-wrap" th:unless="${porFornada.empty}"><table><thead><tr><th>Fornada</th><th>Ocupação do forno</th><th>Enfornado</th><th>Desenfornado</th><th>1ª qualidade</th><th>2ª qualidade</th><th>Cru</th></tr></thead><tbody>
       <tr th:each="f : ${porFornada}">
         <td data-label="Fornada"><strong th:text="${f.balanco.fornada.identificacao}"></strong><small th:text="${(f.balanco.fornada.emAndamento ? 'Em andamento' : 'Fechada') + (unidades.size() > 1 ? ' · ' + f.unidade : '')}"></small></td>
+        <td data-label="Ocupação do forno" th:text="${f.ocupacao == null ? '—' : f.ocupacao + '%'}"></td>
         <td data-label="Enfornado" th:text="${fmt.inteiro(f.balanco.tijolosEnfornados()) + ' (' + f.balanco.linhasEnfornadas() + ' linhas)'}"></td>
         <td data-label="Desenfornado" th:text="${fmt.inteiro(f.balanco.tijolosDesenfornados()) + ' (' + f.balanco.linhasDesenfornadas() + ' linhas)'}"></td>
         <td data-label="1ª qualidade"><span th:text="${fmt.inteiro(f.balanco.primeira())}"></span><small th:if="${f.primeira != null}"><span th:text="${#numbers.formatDecimal(f.primeira, 1, 0) + '%'}"></span>
@@ -33,8 +77,13 @@
           <span th:if="${f.variacaoCru != null}" class="trend" th:classappend="${f.variacaoCru <= 0 ? 'up' : 'down'}" th:text="${f.setaCru()}"></span></small></td></tr>
     </tbody></table></div>
   </section>
-  <p class="explanation">Por fornada entram os lançamentos ainda pendentes também, como na tela Fornadas. A seta compara a porcentagem com a fornada anterior: verde é melhora (mais 1ª, menos cru). Fornada em andamento ainda pode mudar.</p>
+  <p class="explanation">Por fornada entram os lançamentos ainda pendentes também, como na tela Fornadas. A ocupação compara as linhas enfornadas com as linhas que o forno comporta. A seta compara a porcentagem com a fornada anterior: verde é melhora (mais 1ª, menos cru). Fornada em andamento ainda pode mudar.</p>
+  </th:block>
+
+  <th:block th:if="${v.verMaromba()}">
   <h2>Maromba por dia</h2>
   <div class="notice" th:if="${diasSemRegistro != null and !diasSemRegistro.empty}"><strong th:text="${diasSemRegistro.size() + ' dia(s) sem registro de Maromba na unidade selecionada.'}"></strong><p>Ausência de registro não significa produção zero. Lançamentos pendentes contam como registrados, mas não entram nos volumes acima.</p><details><summary>Ver datas</summary><p class="date-list"><span th:each="dia : ${diasSemRegistro}" th:text="${fmt.data(dia)}"></span></p></details></div>
   <section class="panel records-panel"><div class="section-heading"><h2>Maromba registrada</h2><span class="muted">Unidade: milheiros</span></div><div class="empty-state" th:if="${diarios.empty}"><h3>Aguardando lançamentos validados</h3><p>O painel será atualizado quando o Gestor conferir a produção.</p></div><div class="table-wrap" th:unless="${diarios.empty}"><table><thead><tr><th>Data</th><th th:each="formato : ${formatos}" th:text="${formato.nome}"></th><th>Total de Maromba</th></tr></thead><tbody><tr th:each="d : ${diarios}"><td data-label="Data" th:text="${fmt.data(d.data)}"></td><td th:each="formato : ${formatos}" th:attr="data-label=${formato.nome}" th:text="${fmt.milheiros(d.porFormato.getOrDefault(formato.id, 0L))}"></td><td data-label="Maromba" th:text="${fmt.milheiros(d.total)}"></td></tr></tbody></table></div></section>
+  </th:block>
+<script th:src="@{/js/vendor/chart.umd.min.js}" defer></script>
 </main><footer th:replace="~{fragments/layout :: footer}"></footer></body></html>

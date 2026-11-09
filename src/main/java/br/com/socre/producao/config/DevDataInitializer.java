@@ -28,6 +28,6 @@ public class DevDataInitializer implements CommandLineRunner {
         criar("admin", "Administrador de demonstração", Perfil.ADMINISTRADOR, null);
     }
     private void criar(String login, String nome, Perfil perfil, Unidade unidade) {
-        usuarios.save(new Usuario(UUID.randomUUID(), nome, login + "@socre.local", encoder.encode(senha), perfil, unidade));
+        usuarios.save(new Usuario(UUID.randomUUID(), nome, login, encoder.encode(senha), perfil, unidade));
     }
 }

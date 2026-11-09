@@ -1,0 +1,43 @@
+<!DOCTYPE html><html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"><body>
+<!-- Registro and Gestor de Produção: a large block that says where each record goes and what to do next. -->
+<section th:fragment="aviso(pn, gestor)" class="situation" aria-labelledby="situation-title">
+  <h2 id="situation-title" class="situation-title">Situação do forno agora</h2>
+  <div class="situation-grid">
+    <div class="situation-item" th:classappend="${pn.paraEnforna() == null ? 'situation-alert' : 'situation-ok'}">
+      <span class="situation-label">Enforna</span>
+      <strong th:text="${pn.paraEnforna() == null ? 'Nenhuma fornada aberta para Enforna' : pn.paraEnforna().fornada.identificacao}"></strong>
+      <p th:text="${pn.paraEnforna() == null ? (gestor ? 'Abra a fornada na tela Fornadas quando começarem a enfornar.' : 'A Enforna ainda não pode ser lançada. O Gestor de Produção precisa abrir a fornada.') : 'Toda Enforna lançada agora entra nesta fornada.'}"></p>
+    </div>
+    <div class="situation-item" th:classappend="${pn.abertas.empty ? 'situation-alert' : 'situation-ok'}">
+      <span class="situation-label">Desenforna</span>
+      <strong th:text="${pn.abertas.empty ? 'Nenhuma fornada em andamento' : pn.desenfornando().fornada.identificacao}"></strong>
+      <p th:text="${pn.abertas.empty ? 'A Desenforna ainda não pode ser lançada.' : (pn.abertas.size() > 1 ? 'Normalmente a Desenforna é desta fornada, a mais antiga. Ela já vem marcada na tela.' : 'É a única fornada em andamento.')}"></p>
+    </div>
+    <div class="situation-item">
+      <span class="situation-label">Andamento do fogo</span>
+      <strong th:text="${pn.fase}"></strong>
+      <p th:text="${pn.mapaEm == null ? 'Conforme o último Status do Forno.' : 'Pelo Status do Forno de ' + fmt.horario(pn.mapaEm) + '.'}"></p>
+    </div>
+    <div class="situation-item">
+      <span class="situation-label">Última fechada</span>
+      <strong th:text="${pn.ultimaFechada == null ? 'Nenhuma ainda' : pn.ultimaFechada.identificacao}"></strong>
+      <p th:text="${pn.ultimaFechada == null ? 'Ainda não há fornada fechada.' : 'Fechada em ' + fmt.horario(pn.ultimaFechada.concluidaEm) + '. Não recebe mais lançamentos.'}"></p>
+    </div>
+  </div>
+  <ul class="situation-todo" th:if="${gestor}">
+    <li th:if="${pn.pendentes > 0}" th:text="${pn.pendentes + ' lançamento(s) do Registro esperando validação. A fornada só fecha depois disso.'}"></li>
+    <li th:each="a : ${pn.abertas}" th:if="${a.podeFechar}" th:text="${'Todas as linhas da ' + a.fornada.identificacao + ' já saíram. Se o forno estiver vazio dela, ela pode ser fechada.'}"></li>
+    <li th:if="${pn.abertas.size() == 1 and !pn.abertas[0].recebendoEnforna}">Quando começarem a enfornar atrás do fogo, abra a próxima fornada.</li>
+  </ul>
+</section>
+
+<!-- Gestor Geral and Administrador: the same facts as small indicators, to read and not to act on. -->
+<section th:fragment="quadros(pn)" class="situation-cards" aria-label="Situação do forno">
+  <div class="metric"><span>Fornadas em andamento</span><strong th:text="${pn.abertas.size()}"></strong>
+    <small th:text="${pn.abertas.empty ? 'nenhuma' : #strings.listJoin(pn.abertas.![fornada.identificacao + (recebendoEnforna ? ' (enchendo)' : ' (desenfornando)')], ', ')}"></small></div>
+  <div class="metric"><span>Andamento do fogo</span><strong class="situation-small" th:text="${pn.fase}"></strong>
+    <small th:text="${pn.mapaEm == null ? '—' : 'Status do Forno de ' + fmt.horario(pn.mapaEm)}"></small></div>
+  <div class="metric"><span>Última fechada</span><strong class="situation-small" th:text="${pn.ultimaFechada == null ? 'Nenhuma' : pn.ultimaFechada.identificacao}"></strong>
+    <small th:text="${pn.ultimaFechada == null ? '—' : 'em ' + fmt.horario(pn.ultimaFechada.concluidaEm)}"></small></div>
+</section>
+</body></html>

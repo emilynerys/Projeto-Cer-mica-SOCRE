@@ -35,6 +35,8 @@ public abstract class RegistroEtapa {
     protected void mudarData(LocalDate data) { this.data = data; }
     public void validar(Usuario gestor, Instant agora) { situacao = Situacao.VALIDADO; validador = gestor; validadoEm = agora; }
     public void cancelar() { situacao = Situacao.CANCELADO; }
+    /** RN22: a historical record enters already validated by whoever imported it. */
+    public void importar(Usuario quem, Instant agora) { origem = Origem.IMPORTADO; validar(quem, agora); }
     public UUID getId() { return id; }
     public Formato getFormato() { return formato; }
     public Usuario getAutor() { return autor; }

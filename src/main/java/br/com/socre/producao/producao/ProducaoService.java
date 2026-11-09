@@ -21,12 +21,13 @@ public class ProducaoService extends EtapaService<Maromba> {
     // Each active format with a quantity above zero becomes one record; all of them share the submission key.
     @Transactional
     public List<Maromba> criar(UsuarioAutenticado p, MarombaForm f) {
-        var autor = apoio.comPerfil(p, Perfil.REGISTRO_PRODUCAO);
+        var autor = apoio.quemLanca(p);
+        var unidade = apoio.unidadeDeTrabalho(autor);
         var ativos = formatosAtivos();
         validarCriacao(f, ativos);
-        apoio.conferirData(autor.getUnidade(), f.getData());
+        apoio.conferirData(unidade, f.getData());
         apoio.travar(f.getChaveEnvio().toString());
-        var texto = new StringBuilder(autor.getId() + "|" + autor.getUnidade().getId() + "|" + f.getData());
+        var texto = new StringBuilder(autor.getId() + "|" + unidade.getId() + "|" + f.getData());
         new TreeMap<>(f.getQuantidades()).forEach((formato, q) -> texto.append('|').append(formato).append('=').append(q));
         String impressao = apoio.impressao(texto.toString());
         var anteriores = marombas.findByChaveEnvioOrderByFormatoNome(f.getChaveEnvio());
@@ -39,11 +40,11 @@ public class ProducaoService extends EtapaService<Maromba> {
         for (var formato : ativos) {
             int quantidade = f.getQuantidades().get(formato.getId());
             if (quantidade == 0) continue;
-            if (marombas.existeAtivo(autor.getUnidade().getId(), formato.getId(), f.getData()))
+            if (marombas.existeAtivo(unidade.getId(), formato.getId(), f.getData()))
                 throw new RegraNegocioException("Já existe Maromba de " + formato.getNome() + " para esta data e unidade. Consulte o registro para conferir ou corrigir.");
-            criados.add(marombas.saveAndFlush(new Maromba(autor.getUnidade(), formato, autor, f.getData(), quantidade, f.getChaveEnvio(), impressao, apoio.agora())));
+            criados.add(marombas.saveAndFlush(new Maromba(unidade, formato, autor, f.getData(), quantidade, f.getChaveEnvio(), impressao, apoio.agora())));
         }
-        for (var m : criados) apoio.auditar(m, autor, "CRIACAO", null);
+        for (var m : criados) { apoio.auditar(m, autor, "CRIACAO", null); apoio.validarSeGestor(m, autor); }
         return criados;
     }
     // A correction changes one record, that is, one format, and needs a reason (RN15).

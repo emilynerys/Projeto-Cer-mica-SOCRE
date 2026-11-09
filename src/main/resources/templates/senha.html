@@ -1,0 +1,13 @@
+<!DOCTYPE html><html lang="pt-BR" xmlns:th="http://www.thymeleaf.org"><head th:replace="~{fragments/layout :: head('Trocar senha')}"></head>
+<body><header th:replace="~{fragments/layout :: header}"></header><main class="container narrow">
+  <div class="page-heading"><div><p class="eyebrow">Sua conta</p><h1>Trocar senha</h1>
+    <p class="muted" th:text="${obrigatoria ? 'Este é o seu primeiro acesso. Crie uma senha só sua para continuar.' : 'Depois de trocar, entre de novo com a senha nova.'}"></p></div></div>
+  <div class="notice warning" role="status" th:if="${obrigatoria}"><strong>Antes de usar o sistema, troque a senha provisória.</strong> Ninguém mais vai saber a senha que você criar.</div>
+  <div class="notice error" role="alert" th:if="${mensagemErro}" th:text="${mensagemErro}"></div>
+  <form method="post" th:action="@{/senha}" class="panel form-panel stack">
+    <label for="atual"><span th:text="${obrigatoria ? 'Senha provisória' : 'Senha atual'}"></span><input type="password" id="atual" name="atual" autocomplete="current-password" required></label>
+    <label for="nova">Senha nova <span class="field-help">Ao menos 8 caracteres.</span><input type="password" id="nova" name="nova" minlength="8" autocomplete="new-password" required></label>
+    <label for="confirmacao">Repita a senha nova<input type="password" id="confirmacao" name="confirmacao" minlength="8" autocomplete="new-password" required></label>
+    <div class="actions"><button class="button primary" type="submit">Salvar senha nova</button><a class="button secondary" th:unless="${obrigatoria}" th:href="@{/}">Cancelar</a></div>
+  </form>
+</main><footer th:replace="~{fragments/layout :: footer}"></footer></body></html>

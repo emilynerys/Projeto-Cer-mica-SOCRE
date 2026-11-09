@@ -83,7 +83,7 @@ class FluxoMarombaTest {
         return autenticado(p, Instant.now());
     }
     private RequestPostProcessor autenticado(UsuarioAutenticado p, Instant inicio) throws Exception {
-        var resultado = mvc.perform(post("/login").with(csrf()).param("email", p.email()).param("password", SENHA))
+        var resultado = mvc.perform(post("/login").with(csrf()).param("login", p.login()).param("password", SENHA))
             .andExpect(redirectedUrl("/")).andReturn();
         var cookie = resultado.getResponse().getCookie("SOCRE_SESSION");
         assertThat(cookie).isNotNull();
@@ -164,10 +164,11 @@ class FluxoMarombaTest {
         assertThatThrownBy(() -> service.editar(m.getId(), admin, correcao(m, 1))).isInstanceOf(AccessDeniedException.class);
         assertThatThrownBy(() -> service.cancelar(m.getId(), admin, m.getVersao(), motivo(Motivo.Tipo.CANCELAMENTO, "Data errada"), null)).isInstanceOf(AccessDeniedException.class);
     }
-    @Test void geralApenasConsultaEGestorNaoPodeCriarComoRegistroDeProducao() {
+    @Test void geralApenasConsultaEAdminNaoCria() {
         var m = service.criar(registro, form(100, 200)).getFirst();
         assertThat(service.consultar(m.getId(), geral).getId()).isEqualTo(m.getId());
-        for (var p : List.of(gestor, geral, admin)) assertThatThrownBy(() -> service.criar(p, form(1, 1))).isInstanceOf(AccessDeniedException.class);
+        // Since 08/11/2026 the Gestor de Produção also registers; the Gestor Geral and the Administrador do not.
+        for (var p : List.of(geral, admin)) assertThatThrownBy(() -> service.criar(p, form(1, 1))).isInstanceOf(AccessDeniedException.class);
         for (var p : List.of(registro, geral, admin)) assertThatThrownBy(() -> service.validar(m.getId(), p, 0)).isInstanceOf(AccessDeniedException.class);
         assertThatThrownBy(() -> service.editar(m.getId(), geral, correcao(m, 1))).isInstanceOf(AccessDeniedException.class);
     }
@@ -210,16 +211,17 @@ class FluxoMarombaTest {
         } finally { reset(auditoria); }
     }
     @Test void loginRealAceitaSenhaCorretaERejeitaIncorreta() throws Exception {
-        mvc.perform(post("/login").with(csrf()).param("email", registro.email()).param("password", SENHA))
+        mvc.perform(post("/login").with(csrf()).param("login", registro.login()).param("password", SENHA))
             .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/"));
-        mvc.perform(post("/login").with(csrf()).param("email", registro.email()).param("password", "errada"))
+        mvc.perform(post("/login").with(csrf()).param("login", registro.login()).param("password", "errada"))
             .andExpect(redirectedUrl("/login?erro"));
     }
     @Test void rotasExigemLoginPerfilECsrf() throws Exception {
         mvc.perform(get("/producao")).andExpect(status().is3xxRedirection());
         mvc.perform(get("/admin").with(autenticado(registro))).andExpect(status().isForbidden());
         mvc.perform(get("/painel").with(autenticado(registro))).andExpect(status().isForbidden());
-        mvc.perform(get("/producao/maromba").with(autenticado(gestor))).andExpect(status().isForbidden());
+        mvc.perform(get("/producao/maromba").with(autenticado(gestor))).andExpect(status().isOk());
+        mvc.perform(get("/producao/maromba").with(autenticado(geral))).andExpect(status().isForbidden());
         mvc.perform(post("/producao/maromba").with(autenticado(registro))).andExpect(status().isForbidden());
         mvc.perform(get("/producao").with(autenticado(admin))).andExpect(status().isOk());
         mvc.perform(get("/producao/maromba").with(autenticado(admin))).andExpect(status().isForbidden());
