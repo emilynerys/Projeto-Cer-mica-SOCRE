@@ -1,24 +1,42 @@
 # SOCRE · Controle de produção
 
-Aplicação web desenvolvida para um TCC, destinada ao registro, à conferência e ao acompanhamento da produção de cerâmica vermelha. Este repositório contém a **primeira entrega funcional do SOCRE, centrada em Maromba**, etapa inicial da produção. Os [diagramas UML](docs/uml/README.md) descrevem o modelo previsto para a evolução do sistema; algumas funcionalidades desses diagramas ainda não foram implementadas. O [modelo lógico do banco](docs/modelo-banco-socre.html) mostra as tabelas criadas pelas migrations.
+Aplicação web desenvolvida para um TCC, destinada ao registro, à conferência e ao acompanhamento da produção de cerâmica vermelha: Maromba, Enforna, Desenforna, fornadas, Status do Forno, estoque de tijolo assado e indicadores. O piloto atende só a unidade de Carolina. Os [diagramas UML](docs/uml/README.md) descrevem o modelo do sistema, e o [modelo lógico do banco](docs/modelo-banco-socre.html) mostra as tabelas criadas pelas migrations.
 
 ## O que já funciona
 
-- Login e logout, quatro perfis, bloqueio de contas/unidades inativas e permissões verificadas no servidor.
-- O perfil Registro de Produção (antes chamado Supervisor) registra Maromba de sua unidade em tijolos, por formato ativo (hoje 6 e 8 furos), confere antes de salvar e consulta somente os próprios registros. Cada formato com produção vira um registro próprio.
-- Correção de lançamentos pendentes, conferência e validação pelo Gestor de Produção.
-- Histórico com autor, horário e valores antes/depois; gravação e auditoria na mesma transação.
-- Proteção contra duplicidade diária por formato, reenvio da mesma requisição e alterações simultâneas.
-- Indicadores básicos de Maromba por período/unidade, em milheiros, considerando somente lançamentos validados.
-- Aviso de dias sem registro ao selecionar uma unidade. Ausência de registro não vira produção zero.
-- Formulários responsivos e rascunho na mesma aba do navegador em caso de falha de conexão.
-- Sessões no PostgreSQL: Registro de Produção continua conectado enquanto usar o sistema ao menos a cada 3 dias; demais perfis entram de novo 15 dias após o login.
+**Acesso**
+- Login pelo nome da pessoa, quatro perfis e permissões verificadas no servidor. Conta ou unidade inativa não entra.
+- Senha provisória: quem recebe conta nova ou senha redefinida troca no primeiro acesso. Todos os perfis têm "Trocar senha".
+- Sessões no PostgreSQL: o Registro de Produção continua conectado enquanto usar o sistema ao menos a cada 3 dias; os demais perfis entram de novo 15 dias após o login.
 
-O Administrador cadastra usuários, redefine senhas, mantém formatos, capacidade do forno e motivos, informa o inventário inicial e importa a carga histórica. O cadastro de unidades ficou para depois, porque o piloto é só em Carolina.
+**Lançamentos**
+- Maromba, Enforna e Desenforna por formato ativo (hoje 6 e 8 furos); cada formato com produção vira um registro próprio.
+- Enforna por linhas, com tijolos sugeridos pela referência do formato (2.200 no 6 furos, 1.610 no 8 furos) e editáveis no lançamento. Desenforna com 1ª, 2ª e Cru.
+- Avisos que pedem confirmação para valores fora do esperado. Só dois casos bloqueiam: Enforna acima de 44 linhas na fornada (46 menos as 2 vagas) e Desenforna com mais linhas do que as que restam na fornada.
+- Os lançamentos do Registro de Produção ficam Pendentes; os do Gestor de Produção já entram Validados.
+- Validação pelo Gestor agrupada por dia e em lote. Correção e cancelamento com motivo de uma lista.
+- Histórico com autor, horário, valores antes/depois e motivo; gravação e auditoria na mesma transação.
+- Proteção contra duplicidade por etapa, formato e data, reenvio da mesma requisição e alterações simultâneas.
+- Exportação dos lançamentos em CSV. Rascunho na mesma aba do navegador em caso de falha de conexão.
+
+**Fornadas e forno**
+- O Gestor de Produção abre e conclui as fornadas, numeradas por mês, com no máximo duas em andamento. A Enforna vai sempre para a última aberta.
+- Horários opcionais do fogo (início do esquente e fim da queima), com duração das fases e velocidade em linhas por 24 h.
+- Balanço enfornado × desenfornado por formato; a conclusão mostra a diferença sem exigir justificativa.
+- Status do Forno: mapa das 46 linhas igual ao papel do forno, com resumo, histórico, preenchimento por intervalo e botão "fogo aqui". Só o Gestor de Produção lança; os demais consultam.
+
+**Estoque e indicadores**
+- Estoque de tijolo assado: contagem do pátio lançada pelo Gestor de Produção e estoque no forno calculado pelas linhas assadas do último mapa.
+- Painel de indicadores só com lançamentos validados: cartões com comparação ao período anterior, velocímetros de qualidade, ocupação e velocidade da queima, gráficos de produção por dia, qualidade por fornada, movimento do pátio e estoque. Modo tela cheia para TV e exportação em PDF.
+- Aviso de dias sem registro. Ausência de registro não vira produção zero.
+
+**Administração**
+- O Administrador cadastra usuários, redefine senhas, mantém formatos, linhas do forno e motivos, informa o inventário inicial, importa a carga histórica e consulta a atividade recente de cada pessoa. Ele lê a produção, mas não lança nem valida.
+- O cadastro de unidades ficou para depois, porque o piloto é só em Carolina.
 
 ## Tecnologias e requisitos locais
 
-Java com alvo de compilação **21**, Spring Boot **4.1.1**, Spring MVC, Thymeleaf, CSS e JavaScript; Spring Security, Spring Session JDBC, JPA, PostgreSQL e Flyway. Maven **3.9.16** pelo Wrapper, sem precisar instalar Maven globalmente.
+Java com alvo de compilação **21**, Spring Boot **4.1.1**, Spring MVC, Thymeleaf, CSS e JavaScript (com Chart.js 4.4.1 guardado no projeto); Spring Security, Spring Session JDBC, JPA, PostgreSQL e Flyway. Maven **3.9.16** pelo Wrapper, sem precisar instalar Maven globalmente.
 
 Requisitos: Windows, PowerShell, **JDK 21 ou superior** (`java` e `javac` no PATH) e **PostgreSQL 18** com as ferramentas `initdb`, `pg_ctl` e `psql`. O ambiente verificado usa Microsoft OpenJDK **25.0.3** e PostgreSQL **18.4**. Os scripts esperam os binários em `C:\Program Files\PostgreSQL\18\bin`. Nenhum serviço de PostgreSQL instalado é iniciado ou reconfigurado: os scripts criam um cluster próprio dentro de `.local`, escutando apenas em `127.0.0.1:55432`.
 
@@ -37,12 +55,12 @@ javac -version
 
 Na primeira execução, o script prepara os bancos, gera senhas aleatórias, baixa dependências pelo Maven, compila e inicia a aplicação em segundo plano. É preciso internet para o primeiro download. Abra **http://127.0.0.1:8080**. As credenciais ficam no arquivo local **`.local/ACESSO_LOCAL.md`**.
 
-| Perfil de demonstração | E-mail |
+| Perfil de demonstração | Login |
 | --- | --- |
-| Registro de Produção | registro@socre.local |
-| Gestor de Produção | gestor@socre.local |
-| Gestor Geral | geral@socre.local |
-| Administrador | admin@socre.local |
+| Registro de Produção | registro |
+| Gestor de Produção | gestor |
+| Gestor Geral | geral |
+| Administrador | admin |
 
 As contas são geradas somente no perfil `dev`, em banco inicialmente sem usuários. A senha local é compartilhada apenas por essas contas fictícias. A pasta `.local` não entra no Git e não deve ser enviada junto com o código.
 
@@ -78,9 +96,9 @@ Logs: `.local/app.log`, `.local/app-error.log` e `.local/postgres.log`. Não ini
 
 Executa JUnit, MockMvc e testes de integração com **PostgreSQL real em `socre_test`**, separado de `socre_dev`. As migrations são aplicadas por Flyway. Cada teste cria suas próprias unidades e contas fictícias; os dados de teste ficam apenas nesse banco. Não apontar esse comando para uma base real.
 
-Os cenários verificam permissões, login e sessões persistentes, expiração e inativação, unicidade sob concorrência, repetição segura do envio, correção com controle de versão, validação, exclusão de pendentes dos totais, preservação da auditoria e rollback quando o histórico falha. Relatórios ficam em `target/surefire-reports`.
+Os cenários verificam permissões, login e sessões persistentes, expiração e inativação, unicidade sob concorrência, repetição segura do envio, correção com controle de versão, validação, exclusão de pendentes dos totais, preservação da auditoria e rollback quando o histórico falha, além de fornadas, Enforna, Desenforna, Status do Forno, estoque, importação, cadastros, painel, PDF e CSV. Relatórios ficam em `target/surefire-reports`.
 
-A suíte contém **18 testes**: 15 de integração e 3 da política de sessão. A senha fixa no código dos testes é fictícia e exclusiva das contas criadas em `socre_test`; as contas de demonstração recebem outra senha, gerada localmente.
+A suíte contém **40 testes**: 16 de Maromba e acesso, 8 de fornadas, 13 das telas e 3 da política de sessão. A senha fixa no código dos testes é fictícia e exclusiva das contas criadas em `socre_test`; as contas de demonstração recebem outra senha, gerada localmente.
 
 Para gerar o JAR e também executar os testes, use `scripts/testar.ps1`, que executa o ciclo Maven `verify`. Para compilar sem testar:
 
@@ -113,14 +131,14 @@ Na configuração da IDE, informe as mesmas variáveis listadas abaixo e ative `
 
 `.env.example` lista as variáveis sem segredos. Spring não carrega esse arquivo automaticamente; use o ambiente do terminal, IDE ou provedor. Os scripts PowerShell carregam `.local/local-secrets.json` apenas no processo atual.
 
-A conta de execução não pode alterar/excluir a auditoria nem criar tabelas. A conta de migrations é diferente. Alterações de estrutura devem gerar novas migrations em `src/main/resources/db/migration`; não editar migrations já aplicadas. Desde a V4, cada etapa tem tabela própria (`maromba`, `enforna`, `desenforna`) e cada registro é um formato em um dia; a V4 também criou `formato`, `motivo`, `fornada` e `inventario_inicial` e moveu a Maromba antiga para o novo modelo, preservando a auditoria. Por enquanto só a Maromba tem telas.
+A conta de execução não pode alterar/excluir a auditoria nem criar tabelas. A conta de migrations é diferente. Alterações de estrutura devem gerar novas migrations em `src/main/resources/db/migration`; não editar migrations já aplicadas. Desde a V4, cada etapa tem tabela própria (`maromba`, `enforna`, `desenforna`) e cada registro é um formato em um dia; a V4 também criou `formato`, `motivo`, `fornada` e `inventario_inicial` e moveu a Maromba antiga para o novo modelo, preservando a auditoria. As migrations seguintes acrescentaram os marcos da fornada (V5), o Status do Forno (V6), a auditoria da redefinição de senha (V7) e o login pelo nome, o estoque assado e o vínculo do mapa com as fornadas (V8).
 
 ## Organização
 
 ```text
 src/main/java/br/com/socre/producao/
   acesso/       autenticação, usuários, perfis e sessões
-  cadastro/     unidades; próximos cadastros entram aqui
+  cadastro/     unidade, formatos e motivos
   producao/     registros, validação, consultas e regras
   auditoria/    histórico de produção
   web/          controladores das páginas e apresentação
@@ -148,20 +166,21 @@ git diff --cached --stat
 git diff --cached
 ```
 
-## Demonstrar o primeiro fluxo
+## Demonstrar o fluxo
 
-1. Entre como Registro de Produção e abra **Registrar Maromba**.
-2. Informe 12.000 tijolos de 6 furos e 3.000 de 8 furos em uma data sem registro. Confira e salve.
-3. Devem aparecer dois registros **Pendentes**, um por formato. Abra o de 6 furos, corrija para 13.000 e veja o histórico.
-4. Saia e entre como Gestor de Produção. Abra cada registro, confira e valide.
-5. Abra Indicadores: o total deve ser **16,0 milheiros de Maromba**. Esses valores não representam produção acabada.
-6. Entre como Gestor Geral para consultar. O Registro de Produção já não pode editar esse registro validado.
+1. Entre como **gestor** e abra **Fornadas**. Abra uma nova fornada.
+2. Saia e entre como **registro**. Em **Lançamentos**, registre a Maromba (por exemplo, 12.000 tijolos de 6 furos e 3.000 de 8 furos) em uma data sem registro, confira e salve. Cada formato vira um registro **Pendente**.
+3. Registre uma **Enforna** com algumas linhas de cada formato: o sistema sugere a quantidade pelas linhas. Tente passar de 44 linhas para ver o bloqueio.
+4. Abra um registro pendente, corrija com motivo e veja o histórico.
+5. Saia e entre como **gestor**. Em **Lançamentos**, valide os registros do dia. Lance o **Status do Forno** e uma contagem do **Estoque**, registre uma **Desenforna** e veja o balanço da fornada.
+6. Abra **Indicadores**: só os lançamentos validados aparecem. Exporte o PDF.
+7. Entre como **geral** para consultar e como **admin** para ver os cadastros e a atividade recente. O Registro de Produção já não pode editar os registros validados.
 
 O rascunho sobrevive a recarregamentos na mesma aba. Sair da conta o remove; fechar a aba normalmente encerra esse armazenamento. Não há fila offline nem envio automático posterior. O botão **Descartar rascunho** permite carregar a versão atual do servidor após conflito de edição.
 
 ## Limitações e evolução
 
-Próximos passos: cadastros administrativos, ciclo de fornadas, etapas Enforna/Desenforna, relatórios e correções após validação. As regras operacionais desses fluxos devem ser confirmadas antes da implementação.
+Ficam para depois: vendas e estoque de produto acabado calculado a partir delas, cadastro de unidades e as demais unidades do grupo, e fila offline (hoje existe só o rascunho na aba).
 
 Publicação ainda não foi realizada. Antes de usar dados reais, completar o núcleo, provisionar contas individuais, preparar HTTPS, backup/restauração, suporte e validação com os usuários. O perfil `dev` e os bancos locais servem exclusivamente ao desenvolvimento.
 
